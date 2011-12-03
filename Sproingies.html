@@ -405,6 +405,10 @@ var sproingieShaderProgram;
 var sproingieBoomShaderProgram;
 var dotTexture;
 
+var colorTime=0;
+var groundRGB = [ 0.156863, 0.156863, 0.392157 ];
+var nextGroundRGB = [ 0.156863, 0.156863, 0.392157 ];
+
 //                  Misc helpful URLs
 //  Sproingie Wiki: https://bitbucket.org/emackey/sproingies/wiki/
 //          JSLint: http://www.jslint.com/
@@ -1366,7 +1370,7 @@ function SetMaxSproingies(max) {
     setProjectionUniforms(groundShaderProgram, pMatrix, groundPos);
     setMatrixUniforms(groundShaderProgram, mvMatrix);
     setMaterial(groundShaderProgram,
-        0.156863, 0.156863, 0.392157, 0.5,  // Side RGB, Side specularity
+        groundRGB[0],groundRGB[1],groundRGB[2], 0.5,  // Side RGB, Side specularity
         0.392157, 0.784314, 0.941176);      // Top RGB
     
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, groundBuffers.VertexIndex);
@@ -1500,10 +1504,34 @@ function SetMaxSproingies(max) {
                 //$("body").css('cursor', 'none');
             }
         }
+		
+		if (parseInt(nextGroundRGB[0] * 255) < parseInt(groundRGB[0] * 255))
+			groundRGB[0] -= 0.003;
+		else if (parseInt(nextGroundRGB[0] * 255) > parseInt(groundRGB[0] * 255))
+			groundRGB[0] += 0.003;
+			
+		if (parseInt(nextGroundRGB[1] * 255) < parseInt(groundRGB[1] * 255))
+			groundRGB[1] -= 0.003;
+		else if (parseInt(nextGroundRGB[1] * 255) > parseInt(groundRGB[1] * 255))
+			groundRGB[1] += 0.003;
+		
+		if (parseInt(nextGroundRGB[2] * 255) < parseInt(groundRGB[2] * 255))
+			groundRGB[2] -= 0.003;
+		else if (parseInt(nextGroundRGB[2] * 255) > parseInt(groundRGB[2] * 255))
+			groundRGB[2] += 0.003;
     }
+	
+	
     lastTime = timeNow;
   }
 
+  function changeColor()
+  {
+	if (colorTime)	
+		nextGroundRGB = [ Math.random(), Math.random(), Math.random() ];	
+	
+	setTimeout("changeColor()",colorTime*1000);	
+  }
 
   function tick() {
     requestAnimFrame(tick);
@@ -1592,7 +1620,9 @@ function SetMaxSproingies(max) {
     canvas.onmousedown = handleMouseDown;
     document.onmouseup = handleMouseUp;
     document.onmousemove = handleMouseMove;
-
+	
+	changeColor();
+	
     tick();
   }
 
@@ -1647,8 +1677,8 @@ function SetMaxSproingies(max) {
       howfast = y;
       $("#howFastNum").html(y);
       return y;
-  }
 
+  }
   // Code sets slider
   function PutHowFast() {
       $("#howFastNum").html(howfast);
@@ -1689,7 +1719,16 @@ function SetMaxSproingies(max) {
           resizable: false,
           buttons: { "Ok": function() { $(this).dialog("close"); } }
       });
-
+	  
+	  $("#rotateColorNum").html(colorTime + " Second");
+	  $("#rotateColorSlider").slider({
+          min: 0,
+          max: 10,
+          value: colorTime,
+          animate: true,
+          orientation: "vertical",
+          slide: function(event, ui) { colorTime = ui.value; $("#rotateColorNum").html(colorTime + " Second"); return true; }
+      });
       $("#howManySlider").slider({
           min: 1,
           max: 100,
@@ -1845,6 +1884,11 @@ function SetMaxSproingies(max) {
                 <p>How<br />funky</p>
                 <span id="howFunkySlider"></span>
                 <p id="howFunkyNum">&nbsp;</p>
+            </div>
+			<div class="sliderBox ui-widget ui-corner-all">
+                <p>Rotate<br />Color</p>
+                <span id="rotateColorSlider"></span>
+                <p id="rotateColorNum">&nbsp;</p>
             </div>
         </div>
     </div>
