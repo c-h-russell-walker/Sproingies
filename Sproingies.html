@@ -409,6 +409,8 @@ var colorTime=0;
 var groundRGB = [ 0.156863, 0.156863, 0.392157 ];
 var nextGroundRGB = [ 0.156863, 0.156863, 0.392157 ];
 
+var groundScale=1;
+
 //                  Misc helpful URLs
 //  Sproingie Wiki: https://bitbucket.org/emackey/sproingies/wiki/
 //          JSLint: http://www.jslint.com/
@@ -858,6 +860,7 @@ Sproingie.prototype.ParametricSproingie = function(fstage, sproingieBuffers, spr
 	var fBulge = ((fstage<2.0)?(Math.sin(fstage*Math.PI*0.5)*0.25):(Math.sin((fstage+2)*Math.PI*0.25)*0.1));
 	var fStretch = ((fstage<2.0)?(Math.sin(fstage*Math.PI*0.5)*-0.25+1.0):(Math.sin((fstage+2.0)*Math.PI*0.25)*-0.2+1.0));
 
+	
 	if (this.m_weirdBits & SP_BIT_AIRDROP) {
 		// Old age Sproingie squishes flat against stair.
 		if ((this.m_stage < 0.0) && (this.m_life < 10.0))
@@ -1237,49 +1240,52 @@ function SetMaxSproingies(max) {
           return true;
       };
 
+	  
       var h;
       for (h = 0; h < fullHeight; ++h) {
           var x = startX + h;
           var y = startY - (h * 2);
           var z = startZ + h;
 
+		  y*=groundScale;
+		  
           var w;
           for (w = 0; w < fullWidth; ++w) {
               normals = normals.concat(one_normal_group);
               indices = indices.concat(one_index_group);
-              one_index_group.every(addTwentyFour);
-              vertices = vertices.concat([
-                // Upper top
+              one_index_group.every(addTwentyFour);          			 
+			   vertices = vertices.concat([
+                 // Upper top
 			        x,     y, z,
 			        x,     y, z - 1,
 			        x + 1, y, z - 1,
 			        x + 1, y, z,
 			    // Lower top
-			        x + 1, y - 1, z,
-			        x + 1, y - 1, z - 1,
-			        x + 2, y - 1, z - 1,
-			        x + 2, y - 1, z,
+			        x + 1, y - 1*groundScale, z,
+			        x + 1, y - 1*groundScale, z - 1,
+			        x + 2, y - 1*groundScale, z - 1,
+			        x + 2, y - 1*groundScale, z,
                 // Upper left
 			        x,     y    , z,
 			        x + 1, y    , z,
-			        x + 1, y - 1, z,
-			        x,     y - 1, z,
+			        x + 1, y - 1*groundScale, z,
+			        x,     y - 1*groundScale, z,
                 // Lower left
-			        x + 1, y - 1, z,
-			        x + 2, y - 1, z,
-			        x + 2, y - 2, z,
-			        x + 1, y - 2, z,
+			        x + 1, y - 1*groundScale, z,
+			        x + 2, y - 1*groundScale, z,
+			        x + 2, y - 2*groundScale, z,
+			        x + 1, y - 2*groundScale, z,
                 // Upper right
 			        x + 1, y    , z,
 			        x + 1, y    , z - 1,
-			        x + 1, y - 1, z - 1,
-			        x + 1, y - 1, z,
+			        x + 1, y - 1*groundScale, z - 1,
+			        x + 1, y - 1*groundScale, z,
                 // Lower right
-			        x + 2, y - 1, z,
-			        x + 2, y - 1, z - 1,
-			        x + 2, y - 2, z - 1,
-			        x + 2, y - 2, z
-              ]);
+			        x + 2, y - 1*groundScale, z,
+			        x + 2, y - 1*groundScale, z - 1,
+			        x + 2, y - 2*groundScale, z - 1,
+			        x + 2, y - 2*groundScale, z
+              ]);              
               ++x;
               --z;
           }
@@ -1326,7 +1332,8 @@ function SetMaxSproingies(max) {
   function drawScene() {
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
+	
+	
     var pMatrix = mat4.create();
 	var fov = 88.0;
 
@@ -1505,32 +1512,39 @@ function SetMaxSproingies(max) {
             }
         }
 		
-		if (parseInt(nextGroundRGB[0] * 255) < parseInt(groundRGB[0] * 255))
-			groundRGB[0] -= 0.003;
-		else if (parseInt(nextGroundRGB[0] * 255) > parseInt(groundRGB[0] * 255))
-			groundRGB[0] += 0.003;
-			
-		if (parseInt(nextGroundRGB[1] * 255) < parseInt(groundRGB[1] * 255))
-			groundRGB[1] -= 0.003;
-		else if (parseInt(nextGroundRGB[1] * 255) > parseInt(groundRGB[1] * 255))
-			groundRGB[1] += 0.003;
+		//Fade the ground colors
+		changeGroundColors();
 		
-		if (parseInt(nextGroundRGB[2] * 255) < parseInt(groundRGB[2] * 255))
-			groundRGB[2] -= 0.003;
-		else if (parseInt(nextGroundRGB[2] * 255) > parseInt(groundRGB[2] * 255))
-			groundRGB[2] += 0.003;
     }
 	
 	
     lastTime = timeNow;
   }
 
-  function changeColor()
+  function changeGroundColors()
+  {
+		if (parseInt(nextGroundRGB[0] * 255) < parseInt(groundRGB[0] * 255))
+			groundRGB[0] -= (5+colorTime)/1000;
+		else if (parseInt(nextGroundRGB[0] * 255) > parseInt(groundRGB[0] * 255))
+			groundRGB[0] += (5+colorTime)/1000;
+			
+		if (parseInt(nextGroundRGB[1] * 255) < parseInt(groundRGB[1] * 255))
+			groundRGB[1] -= (5+colorTime)/1000;
+		else if (parseInt(nextGroundRGB[1] * 255) > parseInt(groundRGB[1] * 255))
+			groundRGB[1] += (5+colorTime)/1000;
+		
+		if (parseInt(nextGroundRGB[2] * 255) < parseInt(groundRGB[2] * 255))
+			groundRGB[2] -= (5+colorTime)/1000;
+		else if (parseInt(nextGroundRGB[2] * 255) > parseInt(groundRGB[2] * 255))
+			groundRGB[2] += (5+colorTime)/1000;
+  }
+  
+  function changeColorTimer()
   {
 	if (colorTime)	
 		nextGroundRGB = [ Math.random(), Math.random(), Math.random() ];	
 	
-	setTimeout("changeColor()",colorTime*1000);	
+	setTimeout("changeColorTimer()",colorTime*1000);	
   }
 
   function tick() {
@@ -1621,7 +1635,7 @@ function SetMaxSproingies(max) {
     document.onmouseup = handleMouseUp;
     document.onmousemove = handleMouseMove;
 	
-	changeColor();
+	changeColorTimer();
 	
     tick();
   }
@@ -1720,7 +1734,7 @@ function SetMaxSproingies(max) {
           buttons: { "Ok": function() { $(this).dialog("close"); } }
       });
 	  
-	  $("#rotateColorNum").html(colorTime + " Second");
+	  $("#rotateColorNum").html(colorTime);
 	  $("#rotateColorSlider").slider({
           min: 0,
           max: 10,
@@ -1728,6 +1742,16 @@ function SetMaxSproingies(max) {
           animate: true,
           orientation: "vertical",
           slide: function(event, ui) { colorTime = ui.value; $("#rotateColorNum").html(colorTime + " Second"); return true; }
+      });
+	  $("#groundScaleNum").html(groundScale);
+	  $("#groundScaleSlider").slider({
+          min: 0.1,
+          max: 5.0,
+		  step: 0.1,
+          value: groundScale,
+          animate: true,
+          orientation: "vertical",
+          slide: function(event, ui) { groundScale = ui.value; $("#groundScaleNum").html(groundScale); computeGround(8, 16, groundBuffers); return true; }
       });
       $("#howManySlider").slider({
           min: 1,
@@ -1889,6 +1913,11 @@ function SetMaxSproingies(max) {
                 <p>Rotate<br />Color</p>
                 <span id="rotateColorSlider"></span>
                 <p id="rotateColorNum">&nbsp;</p>
+            </div>
+			<div class="sliderBox ui-widget ui-corner-all">
+                <p>Ground<br />Scale</p>
+                <span id="groundScaleSlider"></span>
+                <p id="groundScaleNum">&nbsp;</p>
             </div>
         </div>
     </div>
