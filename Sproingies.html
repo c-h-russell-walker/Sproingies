@@ -409,7 +409,8 @@ var colorTime=0;
 var groundRGB = [ 0.156863, 0.156863, 0.392157 ];
 var nextGroundRGB = [ 0.156863, 0.156863, 0.392157 ];
 
-var groundScale=1;
+var groundHeight=1;
+var groundWidth=8;
 
 //                  Misc helpful URLs
 //  Sproingie Wiki: https://bitbucket.org/emackey/sproingies/wiki/
@@ -1247,7 +1248,7 @@ function SetMaxSproingies(max) {
           var y = startY - (h * 2);
           var z = startZ + h;
 
-		  y*=groundScale;
+		  y*=groundHeight;
 		  
           var w;
           for (w = 0; w < fullWidth; ++w) {
@@ -1261,30 +1262,30 @@ function SetMaxSproingies(max) {
 			        x + 1, y, z - 1,
 			        x + 1, y, z,
 			    // Lower top
-			        x + 1, y - 1*groundScale, z,
-			        x + 1, y - 1*groundScale, z - 1,
-			        x + 2, y - 1*groundScale, z - 1,
-			        x + 2, y - 1*groundScale, z,
+			        x + 1, y - 1*groundHeight, z,
+			        x + 1, y - 1*groundHeight, z - 1,
+			        x + 2, y - 1*groundHeight, z - 1,
+			        x + 2, y - 1*groundHeight, z,
                 // Upper left
 			        x,     y    , z,
 			        x + 1, y    , z,
-			        x + 1, y - 1*groundScale, z,
-			        x,     y - 1*groundScale, z,
+			        x + 1, y - 1*groundHeight, z,
+			        x,     y - 1*groundHeight, z,
                 // Lower left
-			        x + 1, y - 1*groundScale, z,
-			        x + 2, y - 1*groundScale, z,
-			        x + 2, y - 2*groundScale, z,
-			        x + 1, y - 2*groundScale, z,
+			        x + 1, y - 1*groundHeight, z,
+			        x + 2, y - 1*groundHeight, z,
+			        x + 2, y - 2*groundHeight, z,
+			        x + 1, y - 2*groundHeight, z,
                 // Upper right
 			        x + 1, y    , z,
 			        x + 1, y    , z - 1,
-			        x + 1, y - 1*groundScale, z - 1,
-			        x + 1, y - 1*groundScale, z,
+			        x + 1, y - 1*groundHeight, z - 1,
+			        x + 1, y - 1*groundHeight, z,
                 // Lower right
-			        x + 2, y - 1*groundScale, z,
-			        x + 2, y - 1*groundScale, z - 1,
-			        x + 2, y - 2*groundScale, z - 1,
-			        x + 2, y - 2*groundScale, z
+			        x + 2, y - 1*groundHeight, z,
+			        x + 2, y - 1*groundHeight, z - 1,
+			        x + 2, y - 2*groundHeight, z - 1,
+			        x + 2, y - 2*groundHeight, z
               ]);              
               ++x;
               --z;
@@ -1310,7 +1311,7 @@ function SetMaxSproingies(max) {
       groundBuffers.VertexNormal = gl.createBuffer();
       groundBuffers.VertexIndex = gl.createBuffer();
       
-      computeGround(8, 16, groundBuffers);
+      computeGround(groundWidth, 16, groundBuffers);
 
       sproingieBuffers = {};
       sproingieBuffers.VertexPosition = gl.createBuffer();
@@ -1356,8 +1357,9 @@ function SetMaxSproingies(max) {
 	var worldMatrix = mat4.create(mvMatrix);
 
     var groundPos = [ground * (-1.0 / 12.0) - 0.75,
-		ground * (2.0 / 12.0) - 0.5,
+		groundHeight * ground * (2.0 / 12.0) - 0.5, // Multiply the ground Y by the height to achieve smooth scaling -MB
 		ground * (-1.0 / 12.0) + 0.75];
+		
     mat4.translate(mvMatrix, groundPos);
 
     //
@@ -1488,7 +1490,9 @@ function SetMaxSproingies(max) {
             fpsFrames = fpsTime = 0;
         }
 
+		
         if (timePassed > 1.0e-5) {
+		
             if (looking < -0.00001) {
                 lookAway += looking * timePassed;
 
@@ -1743,15 +1747,25 @@ function SetMaxSproingies(max) {
           orientation: "vertical",
           slide: function(event, ui) { colorTime = ui.value; $("#rotateColorNum").html(colorTime + " Second"); return true; }
       });
-	  $("#groundScaleNum").html(groundScale);
-	  $("#groundScaleSlider").slider({
-          min: 0.1,
+	  $("#groundHeightNum").html(groundHeight);
+	  $("#groundHeightSlider").slider({
+          min: 0.5,
           max: 5.0,
 		  step: 0.1,
-          value: groundScale,
+          value: groundHeight,
           animate: true,
           orientation: "vertical",
-          slide: function(event, ui) { groundScale = ui.value; $("#groundScaleNum").html(groundScale); computeGround(8, 16, groundBuffers); return true; }
+          slide: function(event, ui) { groundHeight = ui.value; $("#groundHeightNum").html(groundHeight); computeGround(groundWidth, 16, groundBuffers); return true; }
+      });
+	  $("#groundWidthNum").html(groundWidth);
+	  $("#groundWidthSlider").slider({
+          min: 2,
+          max: 16,
+		  step: 2,
+          value: groundWidth,
+          animate: true,
+          orientation: "vertical",
+          slide: function(event, ui) { groundWidth = ui.value; $("#groundWidthNum").html(groundWidth); computeGround(groundWidth, 16, groundBuffers); return true; }
       });
       $("#howManySlider").slider({
           min: 1,
@@ -1915,9 +1929,14 @@ function SetMaxSproingies(max) {
                 <p id="rotateColorNum">&nbsp;</p>
             </div>
 			<div class="sliderBox ui-widget ui-corner-all">
-                <p>Ground<br />Scale</p>
-                <span id="groundScaleSlider"></span>
-                <p id="groundScaleNum">&nbsp;</p>
+                <p>Ground<br />Height</p>
+                <span id="groundHeightSlider"></span>
+                <p id="groundHeightNum">&nbsp;</p>
+            </div>
+			<div class="sliderBox ui-widget ui-corner-all">
+                <p>Ground<br />Width</p>
+                <span id="groundWidthSlider"></span>
+                <p id="groundWidthNum">&nbsp;</p>
             </div>
         </div>
     </div>
