@@ -346,11 +346,17 @@ body {
         diffuse = 1.0 - ((1.0 - diffuse) * 0.8);
         specular = 1.0 - ((1.0 - specular) * 0.8);
     
-        color = // tops
-          (diffuse  * vec4(0.392157, 0.784314, 0.941176, 1.0)) +
-          (specular * vec4(0.2, 0.2, 0.2, 1.0));
+				if (aVertexPosition.y == 1.0 || aVertexPosition.x == 0.75) {
+						color = // tops
+							(diffuse * vec4(1.0, 0.0, 0.0, 1.0)) +
+							(specular * vec4(0.2, 0.2, 0.2, 1.0));
+				} else {
+						color = // tops
+							(diffuse  * vec4(0.392157, 0.784314, 0.941176, 1.0)) +
+							(specular * vec4(0.2, 0.2, 0.2, 1.0));		
+				}
     }
-                
+		
     vColor = clamp(vec4(color.rgb, 1.0), 0.0, 1.0);
   }
 </script>
@@ -630,7 +636,7 @@ function setLights(shaderProgram, lightMatrix) {
     var fillPos = [4.0, 0.0, 24.0];
     mat4.multiplyVec3(lightMatrix, fillPos);
     gl.uniform4f(shaderProgram.uFillLightColor, (0.4 * 213 / 255.0), (0.4 * 205 / 255.0), (0.4 * 235 / 255.0), 1.0);
-    gl.uniform3f(shaderProgram.uFillLightPos, fillPos[0], fillPos[1], fillPos[2]);
+		gl.uniform3f(shaderProgram.uFillLightPos, fillPos[0], fillPos[1], fillPos[2]);
 }
 
 function setMaterial(shaderProgram, r, g, b, specular, altR, altG, altB) {
@@ -1516,8 +1522,7 @@ function SetMaxSproingies(max) {
 		changeGroundColors();
 		
     }
-	
-	
+
     lastTime = timeNow;
   }
 
