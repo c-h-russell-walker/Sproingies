@@ -791,13 +791,11 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
 
         if (useDifferentSpeeds && (this.m_index > 1)) {
             g_higher += 3;
-        }
-		
-		
+        }		
 		
         this.m_X = (-g_higher - g_back);		
         this.m_Y = (g_higher * 2);
-        this.m_Z = (g_back - g_higher);
+        this.m_Z = (g_back - g_higher);				
         this.m_life = (40 + myrand(200));
         this.m_stage = -10.0;
         this.m_weirdBits = 0;
@@ -845,13 +843,14 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
         //		this.m_G = (40 + myrand(200)) / 255.0;
         //		this.m_B = (40 + myrand(200)) / 255.0;
         // This makes black and white sproingies for gray stairs.
-        //		if (myrand(2)) {
-        //			this.m_R = this.m_G = this.m_B = 40.0f / 255.0;
-        //		}
-        //		else {
-        //			this.m_R = this.m_G = this.m_B = 240.0f / 255.0;
-        //		}
-
+		/*		if (myrand(2)) {
+        			this.m_R = this.m_G = this.m_B = 40.0 / 255.0;
+        		}
+        		else {
+        			this.m_R = this.m_G = this.m_B = 240.0 / 255.0;
+        		}
+		*/
+		
         if (this.CheckCollision(0.0)) {
             // If one is already being born, just wait.
             this.m_life = -1.0;
@@ -1030,7 +1029,10 @@ Sproingie.prototype.ParametricSproingie = function(fstage, sproingieBuffers, spr
 Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
     var sproingieMatrix = mat4.create(mvMatrix);
     var flipSproingieV = false;
-
+	
+	//Scale the sproingie height with the platforms so they can hop accordingly.
+	mat4.scale(sproingieMatrix, [1,platformHeight,1]);
+	
 	if (this.m_stage < 0.0) {    // -10.0 to just below 0.0
 	    if (!(this.m_weirdBits & SP_BIT_AIRDROP)) {
 			mat4.translate(sproingieMatrix, [this.m_X,
@@ -1047,6 +1049,7 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
 					this.m_Z - 0.5]);
 				mat4.scale(sproingieMatrix, [wide, tall, wide]);
 				mat4.translate(sproingieMatrix, [-0.5, -0.01, 0.5]);
+								
 			}
 			else {    // Sproingie being born
 				var drop = 10.0 - ((this.m_stage + 10.0) *
@@ -1098,6 +1101,8 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
         setMaterial(sproingieShaderProgram, 1.0 - this.m_R, 1.0 - this.m_G, 1.0 - this.m_B, 0.5,
             this.m_R, this.m_G, this.m_B);
     }
+		
+	
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sproingieBuffers.VertexIndex);
     gl.drawElements(gl.TRIANGLE_STRIP, sproingieBuffers.numIndices, gl.UNSIGNED_SHORT, 0);
 };
@@ -1363,6 +1368,7 @@ function SetMaxSproingies(max) {
 	    mat4.rotate(mvMatrix, (1.0 - Math.cos(lookAway)) * Math.PI, [0.0, 1.0, 0.0]);
 	}
 	mat4.translate(mvMatrix, [0.0, 0.0, -dist / 16.0]);  /* viewing transform  */
+	
 	mat4.rotate(mvMatrix, rotx * DegToRad, [1.0, 0.0, 0.0]);
 	mat4.rotate(mvMatrix, roty * DegToRad, [0.0, 1.0, 0.0]);
 
