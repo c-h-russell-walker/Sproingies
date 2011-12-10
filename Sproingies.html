@@ -357,6 +357,9 @@ body {
 
 
 <script type="text/javascript">
+var DIRECTION_UP=-1;
+var DIRECTION_DOWN=1;
+
 var DEFAULT_NUM_SPROINGIES = 42;
 var DEFAULT_SPEED          = 20;
 var DEFAULT_GROUND         =  2;
@@ -704,6 +707,19 @@ Sproingie.prototype.CheckCollision = function(maxStage) {
         if ((t2 !== this.m_index) && (this.m_X === sproingieList[t2].m_X) &&
             (this.m_Y === sproingieList[t2].m_Y) && (this.m_Z === sproingieList[t2].m_Z) &&
             (sproingieList[t2].m_life > 10.0) && (sproingieList[t2].m_stage < maxStage)) {
+			
+			if (!sproingieList[t2].m_merge && !this.m_merge)
+			{
+				sproingieList[t2].m_weirdBits = 2;
+				sproingieList[t2].m_altR = this.m_R;
+				sproingieList[t2].m_altG = this.m_G;
+				sproingieList[t2].m_altB = this.m_B;
+				sproingieList[t2].m_merge = true;
+				sproingieList[t2].m_width++;
+				this.m_life=0;
+				return false;
+			}
+			
             return true;
         }
     }
@@ -722,8 +738,14 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
 				
 		var loc = -this.m_X-this.m_Y/2;
 			//Right Side			Left Side
-		if ((loc < -worldWidth) || (loc > worldWidth))				
-			this.m_life = 0;
+		if ( ((loc < -worldWidth) || (loc > worldWidth)) &&	this.m_life > 10.0)	
+			{
+				this.m_life = 10;
+				this.m_stage= BOOM_STAGE;
+				if ((this.m_R += 0.5) > 1.0) { this.m_R = 1.0; }
+                if ((this.m_G += 0.5) > 1.0) { this.m_G = 1.0; }
+                if ((this.m_B += 0.5) > 1.0) { this.m_B = 1.0; }
+			}
 
         if ((this.m_stage += nextStage) >= 12.0) {
             if (this.m_stage >= BOOM_STAGE) {
@@ -830,6 +852,8 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
         this.m_R = (40 + myrand(200)) / 255.0;
         this.m_G = (40 + myrand(200)) / 255.0;
         this.m_B = (40 + myrand(200)) / 255.0;
+		
+		
 
         if (useDifferentSpeeds) {
             this.m_speed = (this.m_R * 2.0) + (1.0 - (40.0 / 255.0));
@@ -849,7 +873,13 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
         		else {
         			this.m_R = this.m_G = this.m_B = 240.0 / 255.0;
         		}
+		
 		*/
+		//New properties to merge sproingies who collide
+		this.m_altR = this.m_R;
+		this.m_altG = this.m_G;
+		this.m_altB = this.m_B;
+		this.m_merge = false;
 		
         if (this.CheckCollision(0.0)) {
             // If one is already being born, just wait.
@@ -944,7 +974,7 @@ Sproingie.prototype.ParametricSproingie = function(fstage, sproingieBuffers, spr
 						y = ((fBendRadius - oX) * Math.sin(oY / fBendRadius));
 					}
 				}
-				
+
 				vertices.push(x, y, z);
 			}
 		}
@@ -1094,15 +1124,19 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
     if ((this.m_weirdBits & SP_BIT_STRIPES) === 0) {
         setMaterial(sproingieShaderProgram, this.m_R, this.m_G, this.m_B, 0.5,
             this.m_R, this.m_G, this.m_B);
+    } else if (this.m_merge) { // Combine the alt color and main color if there was a Sproingie merge
+        setMaterial(sproingieShaderProgram, this.m_R, this.m_G, this.m_B, 0.5,
+            this.m_altR, this.m_altG, this.m_altB);
     } else if (!flipSproingieV) {
         setMaterial(sproingieShaderProgram, this.m_R, this.m_G, this.m_B, 0.5,
             1.0 - this.m_R, 1.0 - this.m_G, 1.0 - this.m_B);
-    } else {
-        setMaterial(sproingieShaderProgram, 1.0 - this.m_R, 1.0 - this.m_G, 1.0 - this.m_B, 0.5,
+    } 	
+	else {
+		setMaterial(sproingieShaderProgram, 1.0 - this.m_R, 1.0 - this.m_G, 1.0 - this.m_B, 0.5,
             this.m_R, this.m_G, this.m_B);
-    }
+	}
 		
-	
+	//this.m_altR, this.m_altG, this.m_altB
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sproingieBuffers.VertexIndex);
     gl.drawElements(gl.TRIANGLE_STRIP, sproingieBuffers.numIndices, gl.UNSIGNED_SHORT, 0);
 };
