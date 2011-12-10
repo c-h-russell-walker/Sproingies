@@ -168,7 +168,10 @@ body {
     vec4 diffuse  = vec4(0.0);
     vec4 specular = vec4(0.0);
 
-    pointLight(n, vViewPos.xyz, 50.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
+ // pointLight(n, vViewPos.xyz, 50.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
+    pointLight(n, vViewPos.xyz, 1000.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
+ // pointLight(n, vViewPos.xyz, 0.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
+   
     pointLight(n, vViewPos.xyz, 50.0, diffuse, specular, uFillLightColor, uFillLightPos);
 
     vec4 surfaceColor = uMaterialColor;
@@ -420,6 +423,9 @@ var nextGroundRGB = [ 0.156863, 0.156863, 0.392157 ];
 var platformHeight=1;
 var worldWidth=8;
 
+var SPECULAR = 0.5;
+
+
 //                  Misc helpful URLs
 //  Sproingie Wiki: https://bitbucket.org/emackey/sproingies/wiki/
 //          JSLint: http://www.jslint.com/
@@ -631,7 +637,9 @@ function setMatrixUniforms(shaderProgram, mvMatrix) {
 }
 
 function setLights(shaderProgram, lightMatrix) {
-    var keyPos = [16.0, 10.0, -4.0];
+    var keyPos;
+	//keyPos = [16.0, 10.0, -4.0];
+	keyPos = [0, 0, 0];
     mat4.multiplyVec3(lightMatrix, keyPos);
     gl.uniform4f(shaderProgram.uKeyLightColor, (254 / 255.0), (239 / 255.0), (203 / 255.0), 1.0);
     gl.uniform3f(shaderProgram.uKeyLightPos, keyPos[0], keyPos[1], keyPos[2]);
@@ -1206,13 +1214,13 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
 
     setMatrixUniforms(sproingieShaderProgram, sproingieMatrix);
     if ((this.m_weirdBits & SP_BIT_STRIPES) === 0) {
-        setMaterial(sproingieShaderProgram, this.m_R, this.m_G, this.m_B, 0.5,
+        setMaterial(sproingieShaderProgram, this.m_R, this.m_G, this.m_B, SPECULAR,
             this.m_R, this.m_G, this.m_B);
     } else if (this.m_merge) { // Combine the alt color and main color if there was a Sproingie merge
-        setMaterial(sproingieShaderProgram, this.m_R, this.m_G, this.m_B, 0.5,
+        setMaterial(sproingieShaderProgram, this.m_R, this.m_G, this.m_B, SPECULAR,
             this.m_altR, this.m_altG, this.m_altB);
     } else if (!flipSproingieV) {
-        setMaterial(sproingieShaderProgram, this.m_R, this.m_G, this.m_B, 0.5,
+        setMaterial(sproingieShaderProgram, this.m_R, this.m_G, this.m_B, SPECULAR,
             1.0 - this.m_R, 1.0 - this.m_G, 1.0 - this.m_B);
     } 	
 	else {
@@ -1873,6 +1881,16 @@ function SetMaxSproingies(max) {
           resizable: false,
           buttons: { "Ok": function() { $(this).dialog("close"); } }
       });
+	  $("#sproingieShineNum").html(SPECULAR);
+	  $("#sproingieShineSlider").slider({
+          min: 0.5,
+          max: 50,
+          value: colorTime,
+		  step: 0.5,
+          animate: true,
+          orientation: "vertical",
+          slide: function(event, ui) { SPECULAR = ui.value; $("#sproingieShineNum").html(SPECULAR); return true; }
+      });
 	  
 	  $("#rotateColorNum").html(colorTime);
 	  $("#rotateColorSlider").slider({
@@ -2073,6 +2091,11 @@ function SetMaxSproingies(max) {
                 <p>World<br />Width</p>
                 <span id="worldWidthSlider"></span>
                 <p id="worldWidthNum">&nbsp;</p>
+            </div>
+			<div class="sliderBox ui-widget ui-corner-all">
+                <p>Sproingie<br />Shineness</p>
+                <span id="sproingieShineSlider"></span>
+                <p id="sproingieShineNum">&nbsp;</p>
             </div>
         </div>
     </div>

@@ -168,7 +168,10 @@ body {
     vec4 diffuse  = vec4(0.0);
     vec4 specular = vec4(0.0);
 
-    pointLight(n, vViewPos.xyz, 50.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
+ // pointLight(n, vViewPos.xyz, 50.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
+    pointLight(n, vViewPos.xyz, 1000.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
+ // pointLight(n, vViewPos.xyz, 0.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
+   
     pointLight(n, vViewPos.xyz, 50.0, diffuse, specular, uFillLightColor, uFillLightPos);
 
     vec4 surfaceColor = uMaterialColor;
@@ -631,7 +634,9 @@ function setMatrixUniforms(shaderProgram, mvMatrix) {
 }
 
 function setLights(shaderProgram, lightMatrix) {
-    var keyPos = [16.0, 10.0, -4.0];
+    var keyPos;
+	keyPos = [16.0, 10.0, -4.0];
+	keyPos = [0, 0, 0];
     mat4.multiplyVec3(lightMatrix, keyPos);
     gl.uniform4f(shaderProgram.uKeyLightColor, (254 / 255.0), (239 / 255.0), (203 / 255.0), 1.0);
     gl.uniform3f(shaderProgram.uKeyLightPos, keyPos[0], keyPos[1], keyPos[2]);
@@ -698,6 +703,7 @@ function Sproingie(index, max) {
 	this.m_G = (40 + myrand(200)) / 255.0;
 	this.m_B = (40 + myrand(200)) / 255.0;
 	this.m_index = index;
+	this.m_type = myrand(NUM_TYPES);
 }
 
 Sproingie.prototype.ResetSproingie = function() {
@@ -895,12 +901,26 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
     }
 };
 
-Sproingie.prototype.ParametricSproingie = function(fstage, sproingieBuffers, sproingieMatrix) {
+Sproingie.prototype.ParametricSproingie = function( sprType, fstage, flipSproingieV, sproingieBuffers, sproingieMatrix)
+ {
 	if (fstage < 0.0) { fstage = 0.0; }
 	if (fstage > 6.0) { fstage = 6.0; }
 
 	var fMoveX = (fstage > 2.0) ? ((Math.cos((fstage-2.0)*Math.PI*0.25)*-0.5+0.5)*fstage/6.0):0.0;
-	var fMoveY = (fstage>2.0)?((fstage<4.0)?(0.25+0.25*Math.cos((fstage-4.0)*Math.PI*0.5)):(0.5-0.1325*((fstage-4.0)*(fstage-4.0)))):0.0;
+	fMoveX += 0.5;
+	
+	var fMoveY = 0;
+	var fMoveZ = -0.5;
+	
+	if ( fstage > 2.0 )
+	{
+		if ( fstage < 4.0 )
+			fMoveY = ( 0.25 + 0.25 * Math.cos( (fstage-4.0)*Math.PI*0.5));
+		else
+			fMoveY = (0.5-0.1325*((fstage-4.0)*(fstage-4.0)));
+	}
+	
+	var fRotateY = 0;
 	var fRotateZ = (fstage>1)?(Math.cos((fstage-1)*Math.PI/5.0)*-90.0+90.0):0.0;
 	var fBendHeight = (fstage < 4.0)?(Math.cos(fstage*Math.PI*0.25)*-0.35+0.65):1.0;
 	var fBendAngle = (Math.cos(fstage*Math.PI/3.0)*-45.0+45.0)*(6.0-fstage)/3.0;
@@ -924,6 +944,56 @@ Sproingie.prototype.ParametricSproingie = function(fstage, sproingieBuffers, spr
 	// Skinny
 	//fBulge -= 0.2f;
 
+	if ( sprType == TYPE_JUMP )
+	{
+		fBendAngle = (Math.cos(fstage*Math.PI/3.0)*-45.0+45.0)*(6.0-fstage)/3.0;
+		fBendAngle *= 0.5;
+		fRotateZ = 0;
+		
+		if ( fstage > 2.0 )
+		{
+			if ( fstage < 4.0 )
+				fMoveY = ( 0.25 + 0.15 * Math.cos( (fstage-4.0)*Math.PI*0.5));
+			else
+				fMoveY = (0.4-0.4*((fstage-4.0)*(fstage-4.0)));
+		}
+		else
+			fMoveY = 0;
+	}
+	else if ( sprType == TYPE_ROLL )
+	{
+		fBulge = 0;
+		fStretch = 1;
+		fBendAngle = 0;
+		fRotateZ = 90;
+		
+		fMoveX = (fstage > 2.0) ? ((Math.cos((fstage-2.0)*Math.PI*0.25)*-0.5+0.5)*fstage/6.0):0.0;
+		fMoveZ = -0.5;
+		
+		if ( fstage > 2.0 )
+		{
+			if ( fstage < 4.0 )
+				fMoveY = 0.25;
+			else
+				fMoveY = (0.25-0.25*((fstage-4.0)*(fstage-4.0)));
+		}
+		else
+			fMoveY = 0.25;
+		
+		if ( flipSproingieV )
+			fRotateY = -90;
+		else
+			fRotateY = 90;
+
+		if ( fstage >= 5 )
+		{
+			if ( flipSproingieV )
+				fRotateY -= ( ( ( fstage - 5 ) / 1 ) * 90 );
+			else
+				fRotateY += ( ( ( fstage - 5 ) / 1 ) * 90 );
+		}
+	}
+	
 	var iU, iV;  // ints
 	var cosProfile = new Array(S_RES+1), sinProfile = new Array(S_RES+1);
 	var sideProfile = new Array(S_RES+1), radialProfile = new Array(S_RES+1), yProfile = new Array(S_RES+1);
@@ -934,8 +1004,14 @@ Sproingie.prototype.ParametricSproingie = function(fstage, sproingieBuffers, spr
 	var fSinBendAngle = Math.sin(fBendAngle);
 	var fCosBendAngle = Math.cos(fBendAngle);
 
-	// Add 0.5 to x and z for original sproingie.
-	mat4.translate(sproingieMatrix, [fMoveX + 0.5, fMoveY, -0.5]);
+		// Add 0.5 to x and z for original sproingie.
+	mat4.translate(sproingieMatrix, [fMoveX, fMoveY, fMoveZ]);
+	if ( fRotateY != 0 )
+	{
+		mat4.translate(sproingieMatrix, [0.5, 0, 0]);
+		mat4.rotate(sproingieMatrix, fRotateY * DegToRad, [0.0, 1.0, 0.0]);
+		mat4.translate(sproingieMatrix, [-0.5, 0, 0]);
+	}
 	mat4.rotate(sproingieMatrix, fRotateZ * DegToRad, [0.0, 0.0, -1.0]);
 
 	// Build Sproingie shape profiles.
@@ -1064,7 +1140,8 @@ Sproingie.prototype.ParametricSproingie = function(fstage, sproingieBuffers, spr
 Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
     var sproingieMatrix = mat4.create(mvMatrix);
     var flipSproingieV = false;
-	
+    var fstage = 0;
+    
 	//Scale the sproingie height with the platforms so they can hop accordingly.
 	mat4.scale(sproingieMatrix, [1,platformHeight,1]);
 	
@@ -1078,6 +1155,11 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
 		    if (this.m_life < 10.0) {  // Sproingie dies of old age
 			    var tall = Math.pow((this.m_stage + 10.0) / 10.0, 2.0);
 			    var wide = ((this.m_stage + 10.0) / 10.0);
+
+			    if ( this.m_type == TYPE_ROLL )
+			    {
+			    	wide = 1;
+			    }
 
 				mat4.translate(sproingieMatrix, [this.m_X + 0.5,
 					this.m_Y + 0.01,
@@ -1100,18 +1182,20 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
 				mat4.translate(sproingieMatrix, [-0.5, 0.0, 0.5]);
 			}
 		}
-		this.ParametricSproingie(0.0, sproingieBuffers, sproingieMatrix);
+		fstage = 0.0;
 	}
 	else if (this.m_stage >= 6.0) {
 		mat4.translate(sproingieMatrix, [this.m_X + 1, this.m_Y - 1, this.m_Z - 1]);
 		mat4.rotate(sproingieMatrix, -90.0 * DegToRad, [0.0, 1.0, 0.0]);
 		flipSproingieV = true;
-		this.ParametricSproingie(this.m_stage - 6.0, sproingieBuffers, sproingieMatrix);
+		fstage = (this.m_stage - 6.0);
 	}
 	else {
 		mat4.translate(sproingieMatrix, [this.m_X, this.m_Y, this.m_Z]);
-		this.ParametricSproingie(this.m_stage, sproingieBuffers, sproingieMatrix);
+		fstage = this.m_stage;
 	}
+	
+	this.ParametricSproingie( this.m_type, fstage, flipSproingieV, sproingieBuffers, sproingieMatrix);
 	
     gl.bindBuffer(gl.ARRAY_BUFFER, sproingieBuffers.VertexPosition);
     gl.vertexAttribPointer(sproingieShaderProgram.vertexPositionAttribute,
