@@ -1883,23 +1883,26 @@ function SetMaxSproingies(max) {
 			//up left
 			case 37: // left arrow
 			case 69: // e                
-				sproingieList[0].m_Y += 1;
-				sproingieList[0].m_Z -= 1;
-                break;    ee
+				sproingieList[0].m_X -= 1;
+				sproingieList[0].m_Y += 1;				
+                break;   
 			//up right
             case 38: //up
 			case 82: // r
-			
+				sproingieList[0].m_Y += 1;
+				sproingieList[0].m_Z -= 1;
                 break;   
 			//down left
             case 39: //right
 			case 68: // d
-              
+				sproingieList[0].m_Y -= 1;
+				sproingieList[0].m_Z += 1;						
                 break;    
 			//down right
             case 40: //down
 			case 70: //f
-			
+				sproingieList[0].m_X += 1;
+				sproingieList[0].m_Y -= 1;	
                 break;    
 	}
   }
