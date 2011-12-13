@@ -1585,8 +1585,8 @@ function SetMaxSproingies(max) {
 		//groundFillPos[1] += 0.1;
 		//groundFillPos[2] -= 0.1;
 		
-		setGroundLights(groundShaderProgram, groundMatrix, groundKeyPos, groundFillPos);
-    //setLights(groundShaderProgram, worldMatrix);
+		//setGroundLights(groundShaderProgram, groundMatrix, groundKeyPos, groundFillPos);
+    setLights(groundShaderProgram, worldMatrix);
 		setProjectionUniforms(groundShaderProgram, pMatrix, groundPos);
     setMatrixUniforms(groundShaderProgram, mvMatrix);
     setMaterial(groundShaderProgram,
