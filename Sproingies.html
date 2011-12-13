@@ -1769,7 +1769,7 @@ function SetMaxSproingies(max) {
           dist += (dist * -0.01 * dy);
 
 		  if ((zoom[selectedCam] <= 1 || dy > 0) && (zoom[selectedCam] >= 0 || dy < 0)){
-			  //var z = zoom + (zoom * 0.01 * dy);
+			  ///var z = zoom + (zoom * 0.01 * dy); 
 			  var z = zoom[selectedCam] + (0.005 * dy);
 			  if (z <= 1 && z >= 0)
 			  zoom[selectedCam] = z;
