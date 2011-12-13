@@ -728,19 +728,25 @@ function Sproingie(index, max) {
 	this.m_R = (40 + myrand(200)) / 255.0;
 	this.m_G = (40 + myrand(200)) / 255.0;
 	this.m_B = (40 + myrand(200)) / 255.0;
-	this.m_index = index;
+	this.m_index = index;	
 	this.m_type = myrand(NUM_TYPES);
+	
+	if (index == 0)
+		this.m_type = TYPE_JUMP; //Main Sproingie always is a jumper
 }
 
 Sproingie.prototype.ResetSproingie = function() {
     this.m_life = (-30 + myrand(28));
 };
 
-Sproingie.prototype.CheckCollision = function(maxStage) {
-    var len = sproingieList.length;
+Sproingie.prototype.CheckCollision = function(maxStage) {    
+	var len = sproingieList.length;
     var t2;
-
-    for (t2 = 0; t2 < len; ++t2) {
+	
+	if (this.m_index == 0) //Don't do collision detection for our main sproingie
+		return false;
+		
+    for (t2 = 1; t2 < len; ++t2) {
         if ((t2 !== this.m_index) && (this.m_X === sproingieList[t2].m_X) &&
             (this.m_Y === sproingieList[t2].m_Y) && (this.m_Z === sproingieList[t2].m_Z) &&
             (sproingieList[t2].m_life > 10.0) && (sproingieList[t2].m_stage < maxStage)) {
@@ -752,7 +758,7 @@ Sproingie.prototype.CheckCollision = function(maxStage) {
 				sproingieList[t2].m_altG = this.m_G;
 				sproingieList[t2].m_altB = this.m_B;
 				sproingieList[t2].m_merge = true;
-				sproingieList[t2].m_width++;
+				sproingieList[t2].m_width=1.75;
 				this.m_life=0;
 				return false;
 			}
@@ -795,10 +801,13 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
                 }
                 return;
             }
-            this.m_X += 1;
-            this.m_Y -= 2;
-            this.m_Z += 1;
-            this.m_stage -= 12.0;
+			
+			
+				this.m_X += 1;
+				this.m_Y -= 2;
+				this.m_Z += 1;
+				this.m_stage -= 12.0;
+			
 
             if ((this.m_life > 10.0) && this.CheckCollision(6.0)) {
                 this.m_life = 10.0;
@@ -821,7 +830,8 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
             }
         }
         else {
-            this.m_life -= nextStage;
+            if (index !=0) //never expire the main Sproingie
+				this.m_life -= nextStage;
         }
     }
     else if ((this.m_life += nextStage) >= 0.0) {
@@ -1803,20 +1813,22 @@ function SetMaxSproingies(max) {
         k = event.keyCode;
         switch(k)
         {
-            case 49:
-            selectedCam = 0;
-            break;
-            case 50:
-            selectedCam = 1;
-            break;
-            case 51:
-            selectedCam = 2;
-            break;
-            case 52:
-            selectedCam = 3;
-            break;
+            case 49: //1
+				selectedCam = 0;
+				break;
+            case 50: //2
+				selectedCam = 1;
+				break;
+            case 51: //3
+				selectedCam = 2;
+				break;
+            case 52: //4
+				selectedCam = 3;
+				break;			
+			
             default:
-            break;
+				break;
+				break;
         }
         //alert('selected camera =' + selectedCam);
       }
@@ -1857,12 +1869,41 @@ function SetMaxSproingies(max) {
     document.onmousemove = handleMouseMove;
     document.ondblclick = handleDblClick;
     document.onkeypress = handleKeys;
+	document.onkeydown = handleKeyDown;
 	
 	changeColorTimer();
 	
     tick();
   }
 
+  function handleKeyDown(evt)
+  {
+	switch (evt.keyCode)
+	{
+			//up left
+			case 37: // left arrow
+			case 69: // e                
+				sproingieList[0].m_Y += 1;
+				sproingieList[0].m_Z -= 1;
+                break;    ee
+			//up right
+            case 38: //up
+			case 82: // r
+			
+                break;   
+			//down left
+            case 39: //right
+			case 68: // d
+              
+                break;    
+			//down right
+            case 40: //down
+			case 70: //f
+			
+                break;    
+	}
+  }
+  
   function insertInspector() {
       var script = document.createElement("script");
       script.type = "text/javascript";
