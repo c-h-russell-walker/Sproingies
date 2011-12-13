@@ -168,7 +168,10 @@ body {
     vec4 diffuse  = vec4(0.0);
     vec4 specular = vec4(0.0);
 
-    pointLight(n, vViewPos.xyz, 50.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
+ // pointLight(n, vViewPos.xyz, 50.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
+    pointLight(n, vViewPos.xyz, 1000.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
+ // pointLight(n, vViewPos.xyz, 0.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
+   
     pointLight(n, vViewPos.xyz, 50.0, diffuse, specular, uFillLightColor, uFillLightPos);
 
     vec4 surfaceColor = uMaterialColor;
@@ -285,6 +288,7 @@ body {
   uniform mat4 uMVMatrix;
   uniform mat4 uProjMatrix;
   uniform mat3 uNormalMatrix;
+  uniform vec4 uCameraMatrix;
 
   uniform vec4 uKeyLightColor;
   uniform vec3 uKeyLightPos;  // Light positions should be premultiplied with thier own view matrix.
@@ -368,10 +372,18 @@ body {
 
 
 <script type="text/javascript">
+var DIRECTION_UP=-1;
+var DIRECTION_DOWN=1;
+var TYPE_SLINKY =	0;
+var TYPE_JUMP =		1;
+var TYPE_ROLL =		2;
+var NUM_TYPES =		3;
+
 var DEFAULT_NUM_SPROINGIES = 42;
 var DEFAULT_SPEED          = 20;
 var DEFAULT_GROUND         =  2;
 var DEFAULT_WEIRDNESS      =  4;
+var DEFAULT_TYPE           =  TYPE_SLINKY;
 
 var CAMERA_SLIDE_RATE = 0.998;
 var BOOM_STAGE = 50.0;
@@ -420,13 +432,36 @@ var colorTime=0;
 var groundRGB = [ 0.156863, 0.156863, 0.392157 ];
 var nextGroundRGB = [ 0.156863, 0.156863, 0.392157 ];
 
+var platformHeight=1;
+var worldWidth=8;
+
+var BOXINESS = 0;
+
+var SPECULAR = 0.5;
+
 var keyPos = [16.0, 10.0, -4.0];
 var groundKeyPos = keyPos;
 var fillPos = [4.0, 0.0, 24.0];
 var groundFillPos = fillPos;
+var lightRot = 0;
+var lightRotSpeed = 0.05;
 
-var platformHeight=1;
-var worldWidth=8;
+var rotCameraX = [0.0, 0.0, 0.0, 0.0];
+var rotCameraY = [0.0, 0.0, 0.0, 0.0];
+var rotCameraZ = 0.0;
+
+var eye = [0.0, 0.0, 16.0];
+var lookAt = [0.0, 1.0, 0.0];
+var up = [0.0, 1.0, 0.0];
+var cameraMatrix = [eye, lookAt, up];
+var zoomLevel = 100;
+var zoom = [0.80, 0.15, 0.9, 0.5];
+var selectedCam = 0; 
+var camera1 = [0.0, 0.0, -16.0]; 
+var camera2 = [1.0, 10.0, -3.0];
+var camera3 = [20.0, 0.0, -64.0];
+var camera4 = [-0.0, 4.0, 16.0];
+var cameras = [camera1, camera2, camera3, camera4];
 
 //                  Misc helpful URLs
 //  Sproingie Wiki: https://bitbucket.org/emackey/sproingies/wiki/
@@ -639,8 +674,10 @@ function setMatrixUniforms(shaderProgram, mvMatrix) {
 }
 
 function setLights(shaderProgram, lightMatrix) {
-    var keyPos = [16.0, 10.0, -4.0];
+
     mat4.multiplyVec3(lightMatrix, keyPos);
+ 
+    //mat4.rotate(lightMatrix, lightRot, [1, 0, 0]);
     gl.uniform4f(shaderProgram.uKeyLightColor, (254 / 255.0), (239 / 255.0), (203 / 255.0), 1.0);
     gl.uniform3f(shaderProgram.uKeyLightPos, keyPos[0], keyPos[1], keyPos[2]);
 
@@ -717,21 +754,41 @@ function Sproingie(index, max) {
 	this.m_R = (40 + myrand(200)) / 255.0;
 	this.m_G = (40 + myrand(200)) / 255.0;
 	this.m_B = (40 + myrand(200)) / 255.0;
-	this.m_index = index;
+	this.m_index = index;	
+	this.m_type = myrand(NUM_TYPES);
+	
+	if (index == 0)
+		this.m_type = TYPE_JUMP; //Main Sproingie always is a jumper
 }
 
 Sproingie.prototype.ResetSproingie = function() {
     this.m_life = (-30 + myrand(28));
 };
 
-Sproingie.prototype.CheckCollision = function(maxStage) {
-    var len = sproingieList.length;
+Sproingie.prototype.CheckCollision = function(maxStage) {    
+	var len = sproingieList.length;
     var t2;
-
-    for (t2 = 0; t2 < len; ++t2) {
+	
+	if (this.m_index == 0) //Don't do collision detection for our main sproingie
+		return false;
+		
+    for (t2 = 1; t2 < len; ++t2) {
         if ((t2 !== this.m_index) && (this.m_X === sproingieList[t2].m_X) &&
             (this.m_Y === sproingieList[t2].m_Y) && (this.m_Z === sproingieList[t2].m_Z) &&
             (sproingieList[t2].m_life > 10.0) && (sproingieList[t2].m_stage < maxStage)) {
+			
+			if (!sproingieList[t2].m_merge && !this.m_merge)
+			{
+				sproingieList[t2].m_weirdBits = 2;
+				sproingieList[t2].m_altR = this.m_R;
+				sproingieList[t2].m_altG = this.m_G;
+				sproingieList[t2].m_altB = this.m_B;
+				sproingieList[t2].m_merge = true;
+				sproingieList[t2].m_width=1.75;
+				this.m_life=0;
+				return false;
+			}
+			
             return true;
         }
     }
@@ -750,8 +807,14 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
 				
 		var loc = -this.m_X-this.m_Y/2;
 			//Right Side			Left Side
-		if ((loc < -worldWidth) || (loc > worldWidth))				
-			this.m_life = 0;
+		if ( ((loc < -worldWidth) || (loc > worldWidth)) &&	this.m_life > 10.0)	
+			{
+				this.m_life = 10;
+				this.m_stage= BOOM_STAGE;
+				if ((this.m_R += 0.5) > 1.0) { this.m_R = 1.0; }
+                if ((this.m_G += 0.5) > 1.0) { this.m_G = 1.0; }
+                if ((this.m_B += 0.5) > 1.0) { this.m_B = 1.0; }
+			}
 
         if ((this.m_stage += nextStage) >= 12.0) {
             if (this.m_stage >= BOOM_STAGE) {
@@ -764,10 +827,13 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
                 }
                 return;
             }
-            this.m_X += 1;
-            this.m_Y -= 2;
-            this.m_Z += 1;
-            this.m_stage -= 12.0;
+			
+			
+				this.m_X += 1;
+				this.m_Y -= 2;
+				this.m_Z += 1;
+				this.m_stage -= 12.0;
+			
 
             if ((this.m_life > 10.0) && this.CheckCollision(6.0)) {
                 this.m_life = 10.0;
@@ -790,7 +856,8 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
             }
         }
         else {
-            this.m_life -= nextStage;
+            if (index !=0) //never expire the main Sproingie
+				this.m_life -= nextStage;
         }
     }
     else if ((this.m_life += nextStage) >= 0.0) {
@@ -858,6 +925,8 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
         this.m_R = (40 + myrand(200)) / 255.0;
         this.m_G = (40 + myrand(200)) / 255.0;
         this.m_B = (40 + myrand(200)) / 255.0;
+		
+		
 
         if (useDifferentSpeeds) {
             this.m_speed = (this.m_R * 2.0) + (1.0 - (40.0 / 255.0));
@@ -877,7 +946,13 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
         		else {
         			this.m_R = this.m_G = this.m_B = 240.0 / 255.0;
         		}
+		
 		*/
+		//New properties to merge sproingies who collide
+		this.m_altR = this.m_R;
+		this.m_altG = this.m_G;
+		this.m_altB = this.m_B;
+		this.m_merge = false;
 		
         if (this.CheckCollision(0.0)) {
             // If one is already being born, just wait.
@@ -888,12 +963,26 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
     }
 };
 
-Sproingie.prototype.ParametricSproingie = function(fstage, sproingieBuffers, sproingieMatrix) {
+Sproingie.prototype.ParametricSproingie = function( sprType, fstage, flipSproingieV, sproingieBuffers, sproingieMatrix)
+ {
 	if (fstage < 0.0) { fstage = 0.0; }
 	if (fstage > 6.0) { fstage = 6.0; }
 
 	var fMoveX = (fstage > 2.0) ? ((Math.cos((fstage-2.0)*Math.PI*0.25)*-0.5+0.5)*fstage/6.0):0.0;
-	var fMoveY = (fstage>2.0)?((fstage<4.0)?(0.25+0.25*Math.cos((fstage-4.0)*Math.PI*0.5)):(0.5-0.1325*((fstage-4.0)*(fstage-4.0)))):0.0;
+	fMoveX += 0.5;
+	
+	var fMoveY = 0;
+	var fMoveZ = -0.5;
+	
+	if ( fstage > 2.0 )
+	{
+		if ( fstage < 4.0 )
+			fMoveY = ( 0.25 + 0.25 * Math.cos( (fstage-4.0)*Math.PI*0.5));
+		else
+			fMoveY = (0.5-0.1325*((fstage-4.0)*(fstage-4.0)));
+	}
+	
+	var fRotateY = 0;
 	var fRotateZ = (fstage>1)?(Math.cos((fstage-1)*Math.PI/5.0)*-90.0+90.0):0.0;
 	var fBendHeight = (fstage < 4.0)?(Math.cos(fstage*Math.PI*0.25)*-0.35+0.65):1.0;
 	var fBendAngle = (Math.cos(fstage*Math.PI/3.0)*-45.0+45.0)*(6.0-fstage)/3.0;
@@ -917,6 +1006,56 @@ Sproingie.prototype.ParametricSproingie = function(fstage, sproingieBuffers, spr
 	// Skinny
 	//fBulge -= 0.2f;
 
+	if ( sprType == TYPE_JUMP )
+	{
+		fBendAngle = (Math.cos(fstage*Math.PI/3.0)*-45.0+45.0)*(6.0-fstage)/3.0;
+		fBendAngle *= 0.5;
+		fRotateZ = 0;
+		
+		if ( fstage > 2.0 )
+		{
+			if ( fstage < 4.0 )
+				fMoveY = ( 0.25 + 0.15 * Math.cos( (fstage-4.0)*Math.PI*0.5));
+			else
+				fMoveY = (0.4-0.4*((fstage-4.0)*(fstage-4.0)));
+		}
+		else
+			fMoveY = 0;
+	}
+	else if ( sprType == TYPE_ROLL )
+	{
+		fBulge = 0;
+		fStretch = 1;
+		fBendAngle = 0;
+		fRotateZ = 90;
+		
+		fMoveX = (fstage > 2.0) ? ((Math.cos((fstage-2.0)*Math.PI*0.25)*-0.5+0.5)*fstage/6.0):0.0;
+		fMoveZ = -0.5;
+		
+		if ( fstage > 2.0 )
+		{
+			if ( fstage < 4.0 )
+				fMoveY = 0.25;
+			else
+				fMoveY = (0.25-0.25*((fstage-4.0)*(fstage-4.0)));
+		}
+		else
+			fMoveY = 0.25;
+		
+		if ( flipSproingieV )
+			fRotateY = -90;
+		else
+			fRotateY = 90;
+
+		if ( fstage >= 5 )
+		{
+			if ( flipSproingieV )
+				fRotateY -= ( ( ( fstage - 5 ) / 1 ) * 90 );
+			else
+				fRotateY += ( ( ( fstage - 5 ) / 1 ) * 90 );
+		}
+	}
+	
 	var iU, iV;  // ints
 	var cosProfile = new Array(S_RES+1), sinProfile = new Array(S_RES+1);
 	var sideProfile = new Array(S_RES+1), radialProfile = new Array(S_RES+1), yProfile = new Array(S_RES+1);
@@ -927,8 +1066,14 @@ Sproingie.prototype.ParametricSproingie = function(fstage, sproingieBuffers, spr
 	var fSinBendAngle = Math.sin(fBendAngle);
 	var fCosBendAngle = Math.cos(fBendAngle);
 
-	// Add 0.5 to x and z for original sproingie.
-	mat4.translate(sproingieMatrix, [fMoveX + 0.5, fMoveY, -0.5]);
+		// Add 0.5 to x and z for original sproingie.
+	mat4.translate(sproingieMatrix, [fMoveX, fMoveY, fMoveZ]);
+	if ( fRotateY != 0 )
+	{
+		mat4.translate(sproingieMatrix, [0.5, 0, 0]);
+		mat4.rotate(sproingieMatrix, fRotateY * DegToRad, [0.0, 1.0, 0.0]);
+		mat4.translate(sproingieMatrix, [-0.5, 0, 0]);
+	}
 	mat4.rotate(sproingieMatrix, fRotateZ * DegToRad, [0.0, 0.0, -1.0]);
 
 	// Build Sproingie shape profiles.
@@ -941,7 +1086,7 @@ Sproingie.prototype.ParametricSproingie = function(fstage, sproingieBuffers, spr
 		bulge = (XtoY(cosProfile[iU],3.0)*-0.5+0.5) * fBulge;  // This is v-based.
 		yProfile[iU] = (Math.atan(v*6.0-3.0)*0.395+0.485) * fStretch;
 		sideProfile[iU] = Math.pow(Math.sin(Math.PI*v),0.5)*((v*v-v+1.0)*2.3-1.3+bulge)*0.5;
-		radialProfile[iU] = (Math.cos(Math.PI*((8.0*u)+1.0))*this.m_boxiness+1.0)*this.m_width;
+		radialProfile[iU] = (Math.cos(Math.PI*((8.0*u)+1.0))*this.m_boxiness*BOXINESS+1.0)*this.m_width;
 	}
 
     var vertices = [];
@@ -972,7 +1117,7 @@ Sproingie.prototype.ParametricSproingie = function(fstage, sproingieBuffers, spr
 						y = ((fBendRadius - oX) * Math.sin(oY / fBendRadius));
 					}
 				}
-				
+
 				vertices.push(x, y, z);
 			}
 		}
@@ -1057,7 +1202,8 @@ Sproingie.prototype.ParametricSproingie = function(fstage, sproingieBuffers, spr
 Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
     var sproingieMatrix = mat4.create(mvMatrix);
     var flipSproingieV = false;
-	
+    var fstage = 0;
+    
 	//Scale the sproingie height with the platforms so they can hop accordingly.
 	mat4.scale(sproingieMatrix, [1,platformHeight,1]);
 	
@@ -1071,6 +1217,11 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
 		    if (this.m_life < 10.0) {  // Sproingie dies of old age
 			    var tall = Math.pow((this.m_stage + 10.0) / 10.0, 2.0);
 			    var wide = ((this.m_stage + 10.0) / 10.0);
+
+			    if ( this.m_type == TYPE_ROLL )
+			    {
+			    	wide = 1;
+			    }
 
 				mat4.translate(sproingieMatrix, [this.m_X + 0.5,
 					this.m_Y + 0.01,
@@ -1093,18 +1244,20 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
 				mat4.translate(sproingieMatrix, [-0.5, 0.0, 0.5]);
 			}
 		}
-		this.ParametricSproingie(0.0, sproingieBuffers, sproingieMatrix);
+		fstage = 0.0;
 	}
 	else if (this.m_stage >= 6.0) {
 		mat4.translate(sproingieMatrix, [this.m_X + 1, this.m_Y - 1, this.m_Z - 1]);
 		mat4.rotate(sproingieMatrix, -90.0 * DegToRad, [0.0, 1.0, 0.0]);
 		flipSproingieV = true;
-		this.ParametricSproingie(this.m_stage - 6.0, sproingieBuffers, sproingieMatrix);
+		fstage = (this.m_stage - 6.0);
 	}
 	else {
 		mat4.translate(sproingieMatrix, [this.m_X, this.m_Y, this.m_Z]);
-		this.ParametricSproingie(this.m_stage, sproingieBuffers, sproingieMatrix);
+		fstage = this.m_stage;
 	}
+	
+	this.ParametricSproingie( this.m_type, fstage, flipSproingieV, sproingieBuffers, sproingieMatrix);
 	
     gl.bindBuffer(gl.ARRAY_BUFFER, sproingieBuffers.VertexPosition);
     gl.vertexAttribPointer(sproingieShaderProgram.vertexPositionAttribute,
@@ -1120,17 +1273,21 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
 
     setMatrixUniforms(sproingieShaderProgram, sproingieMatrix);
     if ((this.m_weirdBits & SP_BIT_STRIPES) === 0) {
-        setMaterial(sproingieShaderProgram, this.m_R, this.m_G, this.m_B, 0.5,
+        setMaterial(sproingieShaderProgram, this.m_R, this.m_G, this.m_B, SPECULAR,
             this.m_R, this.m_G, this.m_B);
+    } else if (this.m_merge) { // Combine the alt color and main color if there was a Sproingie merge
+        setMaterial(sproingieShaderProgram, this.m_R, this.m_G, this.m_B, SPECULAR,
+            this.m_altR, this.m_altG, this.m_altB);
     } else if (!flipSproingieV) {
-        setMaterial(sproingieShaderProgram, this.m_R, this.m_G, this.m_B, 0.5,
+        setMaterial(sproingieShaderProgram, this.m_R, this.m_G, this.m_B, SPECULAR,
             1.0 - this.m_R, 1.0 - this.m_G, 1.0 - this.m_B);
-    } else {
-        setMaterial(sproingieShaderProgram, 1.0 - this.m_R, 1.0 - this.m_G, 1.0 - this.m_B, 0.5,
+    } 	
+	else {
+		setMaterial(sproingieShaderProgram, 1.0 - this.m_R, 1.0 - this.m_G, 1.0 - this.m_B, 0.5,
             this.m_R, this.m_G, this.m_B);
-    }
+	}
 		
-	
+	//this.m_altR, this.m_altG, this.m_altB
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sproingieBuffers.VertexIndex);
     gl.drawElements(gl.TRIANGLE_STRIP, sproingieBuffers.numIndices, gl.UNSIGNED_SHORT, 0);
 };
@@ -1378,37 +1535,33 @@ function SetMaxSproingies(max) {
   function drawScene() {
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-	
-	
+
+
     var pMatrix = mat4.create();
 		var fov = 88.0;
-	
+
 		if ((gl.viewportWidth > gl.viewportHeight) && (gl.viewportHeight > 0))
 		{
-				fov *= (gl.viewportHeight / gl.viewportWidth);
+		    fov *= (gl.viewportHeight / gl.viewportWidth);
 		}
 		mat4.perspective(fov, gl.viewportWidth / gl.viewportHeight, 0.1, 2000.0, pMatrix);
-	
+
 		var mvMatrix = mat4.create();
 		mat4.identity(mvMatrix);
-		
-		if (lookAway > 0.0000001) {
-				mat4.rotate(mvMatrix, (1.0 - Math.cos(lookAway)) * Math.PI, [0.0, 1.0, 0.0]);
-		}
-		mat4.translate(mvMatrix, [0.0, 0.0, -dist / 16.0]);  /* viewing transform  */
-		
-		mat4.rotate(mvMatrix, rotx * DegToRad, [1.0, 0.0, 0.0]);
-		mat4.rotate(mvMatrix, roty * DegToRad, [0.0, 1.0, 0.0]);
-	
+    eye = cameras[selectedCam];
+    eye[2] = 100 * (1 - zoom[selectedCam]) + 2;
+    mvMatrix = mat4.lookAt(eye, lookAt, up);
+
+		mat4.rotate(mvMatrix, rotCameraX[selectedCam] * DegToRad, [1.0, 0.0, 0.0]);
+		mat4.rotate(mvMatrix, rotCameraY[selectedCam] * DegToRad, [0.0, 1.0, 0.0]);
+
 		var worldMatrix = mat4.create(mvMatrix);
-		var groundMatrix = mat4.create(mvMatrix);
 
     var groundPos = [ground * (-1.0 / 12.0) - 0.75,
-		platformHeight * ground * (2.0 / 12.0) - 0.5, // Multiply the ground Y by the height to achieve smooth scaling -MB
-		ground * (-1.0 / 12.0) + 0.75];
-		
-    mat4.translate(mvMatrix, groundPos);
+				platformHeight * ground * (2.0 / 12.0) - 0.5, // Multiply the ground Y by the height to achieve smooth scaling -MB
+				ground * (-1.0 / 12.0) + 0.75];
 
+    mat4.translate(mvMatrix, groundPos);
     //
     // Render the ground
     //
@@ -1505,8 +1658,8 @@ function SetMaxSproingies(max) {
               howFar = 0.9999;
           }
 
-          rotx = target_rx + (howFar * (rotx - target_rx));
-          roty = target_ry + (howFar * (roty - target_ry));
+          //rotx = target_rx + (howFar * (rotx - target_rx));
+          //roty = target_ry + (howFar * (roty - target_ry));
           dist = target_dist + (howFar * (dist - target_dist));
 
           if ((Math.abs(target_rx - rotx) < 0.01) &&
@@ -1536,6 +1689,9 @@ function SetMaxSproingies(max) {
   function animate() {
     var timeNow = new Date().getTime();
     if (lastTime !== 0) {
+        keyPos = [0.0, 0.0, -4.0];
+      lightRot += lightRotSpeed;
+    
         var timePassed = (timeNow - lastTime) * 0.001;
         fpsTime += timePassed;
         fpsFrames++;
@@ -1646,23 +1802,74 @@ function SetMaxSproingies(max) {
 
       if (mouseDown === 0) {
           target_wait = max_target_wait * 2.0;
-          rotx += dy * 0.5;
-          roty += dx * 0.5;
+          rotCameraX[selectedCam] += dy * 0.5;
+          rotCameraY[selectedCam] += dx * 0.5;
 
-          if (rotx < -35.0) { rotx = -35.0; }
-          if (rotx > 65.0) { rotx = 65.0; }
+          if (rotCameraX[selectedCam] < -35.0) { rotCameraX[selectedCam] = -35.0; }
+          if (rotCameraX[selectedCam] > 65.0) { rotCameraX[selectedCam] = 65.0; }
 
-          if (roty < -90.0) { roty = -90.0; }
-          if (roty > 0.0) { roty = 0.0; }
+          if (rotCameraY[selectedCam] < -90.0) { rotCameraY[selectedCam] = -90.0; }
+          if (rotCameraY[selectedCam] > 0.0) { rotCameraY[selectedCam] = 0.0; }
       }
       else {
           target_wait = max_target_wait * 2.0;
           dist += (dist * -0.01 * dy);
 
+		  if ((zoom[selectedCam] <= 1 || dy > 0) && (zoom[selectedCam] >= 0 || dy < 0)){
+			  ///var z = zoom + (zoom * 0.01 * dy); 
+			  var z = zoom[selectedCam] + (0.005 * dy);
+			  if (z <= 1 && z >= 0)
+			  zoom[selectedCam] = z;
+      		$("#zoomLevel").html(zoom[selectedCam].toFixed(2) * 100);
+      		$("#zoomLevelSlider").slider({value: zoom[selectedCam]});
+		  }
+
+		  /* var r = rotCameraY + dx;
+		  if(r < 90 && r > -90)
+		  rotCameraY = r; */
+
           if (dist < 32.0) { dist = 32.0; }
           if (dist > 256.0) { dist = 256.0; }
       }
   }
+
+  function handleDblClick(event) {
+      zoomIn();
+  }
+  
+  function zoomIn(){
+      if (zoom[selectedCam] < 0.99){
+      zoom[selectedCam] += (1 - zoom[selectedCam]) * .2;
+      $("#zoomLevel").html(zoom[selectedCam].toFixed(2) * 100);
+      $("#zoomLevelSlider").slider({value: zoom[selectedCam]});
+      }
+    }
+    
+  function handleKeys(event) {
+	       // alert('Key code: ' + event.keyCode);
+        k = event.keyCode;
+        switch(k)
+        {
+            case 49: //1
+				selectedCam = 0;
+				break;
+            case 50: //2
+				selectedCam = 1;
+				break;
+            case 51: //3
+				selectedCam = 2;
+				break;
+            case 52: //4
+				selectedCam = 3;
+				break;			
+			
+            default:
+				break;
+				break;
+        }
+        //alert('selected camera =' + selectedCam);
+      }
+    
 
   function webGLStart() {
     var canvas = document.getElementById(glCanvasName);
@@ -1697,12 +1904,46 @@ function SetMaxSproingies(max) {
     canvas.onmousedown = handleMouseDown;
     document.onmouseup = handleMouseUp;
     document.onmousemove = handleMouseMove;
+    document.ondblclick = handleDblClick;
+    document.onkeypress = handleKeys;
+	document.onkeydown = handleKeyDown;
 	
 	changeColorTimer();
 	
     tick();
   }
 
+  function handleKeyDown(evt)
+  {
+	switch (evt.keyCode)
+	{
+			//up left
+			case 37: // left arrow
+			case 69: // e                
+				sproingieList[0].m_X -= 1;
+				sproingieList[0].m_Y += 1;				
+                break;   
+			//up right
+            case 38: //up
+			case 82: // r
+				sproingieList[0].m_Y += 1;
+				sproingieList[0].m_Z -= 1;
+                break;   
+			//down left
+            case 39: //right
+			case 68: // d
+				sproingieList[0].m_Y -= 1;
+				sproingieList[0].m_Z += 1;						
+                break;    
+			//down right
+            case 40: //down
+			case 70: //f
+				sproingieList[0].m_X += 1;
+				sproingieList[0].m_Y -= 1;	
+                break;    
+	}
+  }
+  
   function insertInspector() {
       var script = document.createElement("script");
       script.type = "text/javascript";
@@ -1796,6 +2037,16 @@ function SetMaxSproingies(max) {
           resizable: false,
           buttons: { "Ok": function() { $(this).dialog("close"); } }
       });
+	  $("#sproingieShineNum").html(SPECULAR);
+	  $("#sproingieShineSlider").slider({
+          min: 0.5,
+          max: 50,
+          value: colorTime,
+		  step: 0.5,
+          animate: true,
+          orientation: "vertical",
+          slide: function(event, ui) { SPECULAR = ui.value; $("#sproingieShineNum").html(SPECULAR); return true; }
+      });
 	  
 	  $("#rotateColorNum").html(colorTime);
 	  $("#rotateColorSlider").slider({
@@ -1850,6 +2101,25 @@ function SetMaxSproingies(max) {
           animate: true,
           orientation: "vertical",
           slide: function(event, ui) { weirdness = ui.value; $("#howFunkyNum").html(weirdness); return true; }
+      });
+	  $("#shapeNum").html(BOXINESS);
+      $("#shapeSlider").slider({
+          min: 0,
+          max: 2,
+          value: BOXINESS,
+          animate: true,
+          orientation: "vertical",
+          slide: function(event, ui) { BOXINESS = ui.value*10; $("#shapeNum").html(BOXINESS/10); return true; }
+      });
+      $("#zoomLevel").html(zoom[selectedCam].toFixed(2) * 100);
+      $("#zoomLevelSlider").slider({
+          min: 0,
+          max: 1,
+          step: 0.01,
+          value: zoom[selectedCam],
+          animate: true,
+          orientation: "vertical",
+          slide: function(event, ui) { zoom[selectedCam] = ui.value; $("#zoomLevel").html(zoom[selectedCam].toFixed(2) * 100); return true; }
       });
 
       $("#infoDialog").dialog({
@@ -1991,11 +2261,26 @@ function SetMaxSproingies(max) {
                 <p>Platform<br />Height</p>
                 <span id="platformHeightSlider"></span>
                 <p id="platformHeightNum">&nbsp;</p>
+			</div>
+				<div class="sliderBox ui-widget ui-corner-all">
+                <p>Sproingie<br />Boxiness</p>
+                <span id="shapeSlider"></span>
+                <p id="shapeNum">&nbsp;</p>
             </div>
 			<div class="sliderBox ui-widget ui-corner-all">
                 <p>World<br />Width</p>
                 <span id="worldWidthSlider"></span>
                 <p id="worldWidthNum">&nbsp;</p>
+            </div>
+			<div class="sliderBox ui-widget ui-corner-all">
+                <p>Sproingie<br />Shineness</p>
+                <span id="sproingieShineSlider"></span>
+                <p id="sproingieShineNum">&nbsp;</p>
+            </div>
+			<div class="sliderBox ui-widget ui-corner-all">
+                <p>Zoom<br />Level</p>
+                <span id="zoomLevelSlider"></span>
+                <p id="zoomLevel">&nbsp;</p>
             </div>
         </div>
     </div>
