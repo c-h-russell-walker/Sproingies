@@ -2196,11 +2196,6 @@ function SetMaxSproingies(max) {
                 <span id="sproingieShineSlider"></span>
                 <p id="sproingieShineNum">&nbsp;</p>
             </div>
-			<div class="sliderBox ui-widget ui-corner-all">
-                <p>Zoom<br />Level</p>
-                <span id="zoomLevelSlider"></span>
-                <p id="zoomLevel">&nbsp;</p>
-            </div>
         </div>
     </div>
     
