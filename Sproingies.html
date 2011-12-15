@@ -405,6 +405,9 @@ var ground = 0.0, rotx = 0.0, roty = -45.0, dist = 32.0;
 var target_rx = 0.0, target_ry = -45.0, target_dist = 32.0;
 var lookAway = 1.5;
 var looking = -0.5;
+var strobe = false;
+var strobeDir = true;
+var strobeEffect = 0;
 var howfast = DEFAULT_SPEED;
 var groundlevel = DEFAULT_GROUND;
 var weirdness = DEFAULT_WEIRDNESS;
@@ -1575,19 +1578,24 @@ function SetMaxSproingies(max) {
     gl.vertexAttribPointer(groundShaderProgram.vertexNormalAttribute,
         groundBuffers.itemSize, gl.FLOAT, false, 0, 0);
 		
-		// var groundKeyPos = keyPos;
-		//groundKeyPos[0] += 1.0;
-		groundKeyPos[1] += 5.0;
-		//groundKeyPos[2] += 1.0;
+		var range = 4;
+		var rate = 0.2;
+		if (strobe) {
+				groundKeyPos[1] += strobeEffect;
+				if (strobeEffect <= range && strobeDir) {
+						strobeEffect += rate;
+						if (strobeEffect >= range)
+								strobeDir = false;
+				} else {
+						strobeEffect -= rate;
+						if (strobeEffect <= -range)
+								strobeDir = true;
+				}
+		}
 		
-		// var groundFillPos = fillPos;
-		//groundFillPos[0] += 0.1;
-		//groundFillPos[1] += 0.1;
-		//groundFillPos[2] -= 0.1;
-		
-		//setGroundLights(groundShaderProgram, groundMatrix, groundKeyPos, groundFillPos);
+		// setGroundLights(groundShaderProgram, worldMatrix, groundKeyPos, groundFillPos);
     setLights(groundShaderProgram, worldMatrix);
-		setProjectionUniforms(groundShaderProgram, pMatrix, groundPos);
+		setProjectionUniforms(groundShaderProgram, pMatrix, groundKeyPos);
     setMatrixUniforms(groundShaderProgram, mvMatrix);
     setMaterial(groundShaderProgram,
         groundRGB[0],groundRGB[1],groundRGB[2], 0.5,  // Side RGB, Side specularity
@@ -1846,10 +1854,13 @@ function SetMaxSproingies(max) {
     }
     
   function handleKeys(event) {
-	       // alert('Key code: ' + event.keyCode);
+	      // alert('Key code: ' + event.keyCode);
         k = event.keyCode;
         switch(k)
         {
+						case 115: // s
+				strobe = !strobe;
+				break;
             case 49: //1
 				selectedCam = 0;
 				break;
