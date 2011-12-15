@@ -690,18 +690,6 @@ function setLights(shaderProgram, lightMatrix) {
 		gl.uniform3f(shaderProgram.uFillLightPos, fillPos[0], fillPos[1], fillPos[2]);
 }
 
-function setGroundLights(shaderProgram, lightMatrix, gKeyPos, gFillPos) {
-    // var keyPos = [16.0, 10.0, -4.0];
-    mat4.multiplyVec3(lightMatrix, keyPos);
-    gl.uniform4f(shaderProgram.uKeyLightColor, (254 / 255.0), (239 / 255.0), (203 / 255.0), 1.0);
-    gl.uniform3f(shaderProgram.uKeyLightPos, keyPos[0], keyPos[1], keyPos[2]);
-
-    // var fillPos = [4.0, 0.0, 24.0];
-		mat4.multiplyVec3(lightMatrix, fillPos);
-    gl.uniform4f(shaderProgram.uFillLightColor, (0.4 * 213 / 255.0), (0.4 * 205 / 255.0), (0.4 * 235 / 255.0), 1.0);
-		gl.uniform3f(shaderProgram.uFillLightPos, fillPos[0], fillPos[1], fillPos[2]);
-}
-
 function setMaterial(shaderProgram, r, g, b, specular, altR, altG, altB) {
     gl.uniform4f(shaderProgram.uMaterialColor, r, g, b, 1.0);
     gl.uniform4f(shaderProgram.uMaterialSpecular, specular, specular, specular, 1.0);
@@ -1581,7 +1569,9 @@ function SetMaxSproingies(max) {
 		var range = 4;
 		var rate = 0.2;
 		if (strobe) {
+				groundKeyPos[0] += strobeEffect;
 				groundKeyPos[1] += strobeEffect;
+				groundKeyPos[2] += strobeEffect;
 				if (strobeEffect <= range && strobeDir) {
 						strobeEffect += rate;
 						if (strobeEffect >= range)
@@ -1593,7 +1583,6 @@ function SetMaxSproingies(max) {
 				}
 		}
 		
-		// setGroundLights(groundShaderProgram, worldMatrix, groundKeyPos, groundFillPos);
     setLights(groundShaderProgram, worldMatrix);
 		setProjectionUniforms(groundShaderProgram, pMatrix, groundKeyPos);
     setMatrixUniforms(groundShaderProgram, mvMatrix);
