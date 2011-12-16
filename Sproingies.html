@@ -1549,7 +1549,7 @@ function SetMaxSproingies(max) {
 		var worldMatrix = mat4.create(mvMatrix);
 
     var groundPos = [ground * (-1.0 / 12.0) - 0.75,
-				platformHeight * ground * (2.0 / 12.0) - 0.5, // Multiply the ground Y by the height to achieve smooth scaling -MB
+				ground * (2.0 / 12.0) - 0.5, // Multiply the ground Y by the height to achieve smooth scaling -MB
 				ground * (-1.0 / 12.0) + 0.75];
 
     mat4.translate(mvMatrix, groundPos);
