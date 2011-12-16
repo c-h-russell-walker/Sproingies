@@ -534,6 +534,8 @@ var camera3 = [20.0, 0.0, -64.0];
 var camera4 = [-0.0, 4.0, 16.0];
 var cameras = [camera1, camera2, camera3, camera4];
 
+var galvanizedTexture;
+
 //                  Misc helpful URLs
 //  Sproingie Wiki: https://bitbucket.org/emackey/sproingies/wiki/
 //          JSLint: http://www.jslint.com/
@@ -722,9 +724,6 @@ function handleTeapotLoadedTexture(texture) {
 }
 
 
-var earthTexture;
-var galvanizedTexture;
-
 function initTeapotTextures() {
     
     galvanizedTexture = gl.createTexture();
@@ -789,7 +788,9 @@ function initTextures() {
         handleLoadedTexture(dotTexture);
     };
     dotTexture.image.src = "images/dot.png";
+	initTeapotTextures();
 }
+
 
 //
 // Set various uniforms
