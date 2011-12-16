@@ -379,6 +379,7 @@ var TYPE_JUMP =		1;
 var TYPE_ROLL =		2;
 var NUM_TYPES =		3;
 
+
 var DEFAULT_NUM_SPROINGIES = 42;
 var DEFAULT_SPEED          = 20;
 var DEFAULT_GROUND         =  2;
@@ -435,8 +436,9 @@ var colorTime=0;
 var groundRGB = [ 0.156863, 0.156863, 0.392157 ];
 var nextGroundRGB = [ 0.156863, 0.156863, 0.392157 ];
 
-var platformHeight=1;
+
 var worldWidth=8;
+var worldHeight=6;
 
 var BOXINESS = 0;
 
@@ -796,9 +798,10 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
             nextStage *= this.m_speed;
         }
 				
-		var loc = -this.m_X-this.m_Y/2;
+		var locX = -this.m_X-this.m_Y/2;
+		var locY = -this.m_Y;
 			//Right Side			Left Side
-		if ( ((loc < -worldWidth) || (loc > worldWidth)) &&	this.m_life > 10.0)	
+		if ( ((locX < -worldWidth) || (locX > worldWidth)) &&	this.m_life > 10.0)	
 			{
 				this.m_life = 10;
 				this.m_stage= BOOM_STAGE;
@@ -1193,10 +1196,7 @@ Sproingie.prototype.ParametricSproingie = function( sprType, fstage, flipSproing
 Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
     var sproingieMatrix = mat4.create(mvMatrix);
     var flipSproingieV = false;
-    var fstage = 0;
-    
-	//Scale the sproingie height with the platforms so they can hop accordingly.
-	mat4.scale(sproingieMatrix, [1,platformHeight,1]);
+    var fstage = 0;    
 	
 	if (this.m_stage < 0.0) {    // -10.0 to just below 0.0
 	    if (!(this.m_weirdBits & SP_BIT_AIRDROP)) {
@@ -1441,7 +1441,7 @@ function SetMaxSproingies(max) {
           var y = startY - (h * 2);
           var z = startZ + h;
 
-		  y*=platformHeight;
+		  
 		  
           var w;
           for (w = 0; w < fullWidth; ++w) {
@@ -1455,30 +1455,30 @@ function SetMaxSproingies(max) {
 			        x + 1, y, z - 1,
 			        x + 1, y, z,
 			    // Lower top
-			        x + 1, y - 1*platformHeight, z,
-			        x + 1, y - 1*platformHeight, z - 1,
-			        x + 2, y - 1*platformHeight, z - 1,
-			        x + 2, y - 1*platformHeight, z,
+			        x + 1, y - 1, z,
+			        x + 1, y - 1, z - 1,
+			        x + 2, y - 1, z - 1,
+			        x + 2, y - 1, z,
                 // Upper left
 			        x,     y    , z,
 			        x + 1, y    , z,
-			        x + 1, y - 1*platformHeight, z,
-			        x,     y - 1*platformHeight, z,
+			        x + 1, y - 1, z,
+			        x,     y - 1, z,
                 // Lower left
-			        x + 1, y - 1*platformHeight, z,
-			        x + 2, y - 1*platformHeight, z,
-			        x + 2, y - 2*platformHeight, z,
-			        x + 1, y - 2*platformHeight, z,
+			        x + 1, y - 1, z,
+			        x + 2, y - 1, z,
+			        x + 2, y - 2, z,
+			        x + 1, y - 2, z,
                 // Upper right
 			        x + 1, y    , z,
 			        x + 1, y    , z - 1,
-			        x + 1, y - 1*platformHeight, z - 1,
-			        x + 1, y - 1*platformHeight, z,
+			        x + 1, y - 1, z - 1,
+			        x + 1, y - 1, z,
                 // Lower right
-			        x + 2, y - 1*platformHeight, z,
-			        x + 2, y - 1*platformHeight, z - 1,
-			        x + 2, y - 2*platformHeight, z - 1,
-			        x + 2, y - 2*platformHeight, z
+			        x + 2, y - 1, z,
+			        x + 2, y - 1, z - 1,
+			        x + 2, y - 2, z - 1,
+			        x + 2, y - 2, z
               ]);              
               ++x;
               --z;
@@ -1504,7 +1504,7 @@ function SetMaxSproingies(max) {
       groundBuffers.VertexNormal = gl.createBuffer();
       groundBuffers.VertexIndex = gl.createBuffer();
       
-      computeGround(worldWidth, 16, groundBuffers);
+      computeGround(worldWidth, worldHeight, groundBuffers);
 
       sproingieBuffers = {};
       sproingieBuffers.VertexPosition = gl.createBuffer();
@@ -1636,14 +1636,14 @@ function SetMaxSproingies(max) {
       var numSproingies = sproingieList.length;
       var t;
 
-      if ((ground += nextStage) >= 12.0) {
-          ground -= 12.0;
-          for (t = 0; t < numSproingies; ++t) {
-              sproingieList[t].m_X -= 1;
-              sproingieList[t].m_Y += 2;
-              sproingieList[t].m_Z -= 1;
-          }
-      }
+     // if ((ground += nextStage) >= 12.0) {
+      //    ground -= 12.0;
+        //  for (t = 0; t < numSproingies; ++t) {
+        //      sproingieList[t].m_X -= 1;
+        //      sproingieList[t].m_Y += 2;
+        //      sproingieList[t].m_Z -= 1;
+        //  }
+     // }
 				
       for (t = 0; t < numSproingies; ++t) {
           sproingieList[t].AdvanceSproingie(nextStage);
@@ -2056,17 +2056,7 @@ function SetMaxSproingies(max) {
           animate: true,
           orientation: "vertical",
           slide: function(event, ui) { colorTime = ui.value; $("#rotateColorNum").html(colorTime + " Second"); return true; }
-      });
-	  $("#platformHeightNum").html(platformHeight);
-	  $("#platformHeightSlider").slider({
-          min: 0.5,
-          max: 5.0,
-		  step: 0.1,
-          value: platformHeight,
-          animate: true,
-          orientation: "vertical",
-          slide: function(event, ui) { platformHeight = ui.value; $("#platformHeightNum").html(platformHeight); computeGround(worldWidth, 16, groundBuffers); return true; }
-      });
+      });	
 	  $("#worldWidthNum").html(worldWidth);
 	  $("#worldWidthSlider").slider({
           min: 2,
@@ -2256,13 +2246,8 @@ function SetMaxSproingies(max) {
                 <p>Rotate<br />Color</p>
                 <span id="rotateColorSlider"></span>
                 <p id="rotateColorNum">&nbsp;</p>
-            </div>
+            </div>			
 			<div class="sliderBox ui-widget ui-corner-all">
-                <p>Platform<br />Height</p>
-                <span id="platformHeightSlider"></span>
-                <p id="platformHeightNum">&nbsp;</p>
-			</div>
-				<div class="sliderBox ui-widget ui-corner-all">
                 <p>Sproingie<br />Boxiness</p>
                 <span id="shapeSlider"></span>
                 <p id="shapeNum">&nbsp;</p>
