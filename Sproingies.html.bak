@@ -836,7 +836,7 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
             }
         }
         else {
-            if (index !=0) //never expire the main Sproingie
+            //if (index !=0) //never expire the main Sproingie
 				this.m_life -= nextStage;
         }
     }
@@ -918,7 +918,6 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
         else {
             this.m_speed = 1.0;
         }
-	}
 
         // This makes pink-compatible Sproingies for a possible Valentine's Day easter egg.
         //		this.m_R = 1.0;
