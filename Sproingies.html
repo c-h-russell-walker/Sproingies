@@ -423,7 +423,7 @@ var nextGroundRGB = [ 0.156863, 0.156863, 0.392157 ];
 
 
 var worldWidth=8;
-var worldHeight=5;
+var worldHeight=2;
 
 var BOXINESS = 0;
 
@@ -436,6 +436,9 @@ var lightRotSpeed = 0.05;
 var rotCameraX = [0.0, 0.0, 0.0, 0.0];
 var rotCameraY = [0.0, 0.0, 0.0, 0.0];
 var rotCameraZ = 0.0;
+
+var KEYDOWN=false;
+var ALT=false;
 
 var eye = [0.0, 0.0, 16.0];
 var lookAt = [0.0, 1.0, 0.0];
@@ -785,7 +788,7 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
         }
 				
 		var locX = -this.m_X-this.m_Y/2;
-		//var locY = -this.m_Y;
+		
 			//Right Side			Left Side
 		if ( ((locX < -worldWidth) || (locX > worldWidth) || (Math.abs(this.m_Y/2) >= worldHeight)) &&	this.m_life > 10.0)	
 			{
@@ -920,19 +923,6 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
         }
 	}
 
-        // This makes pink-compatible Sproingies for a possible Valentine's Day easter egg.
-        //		this.m_R = 1.0;
-        //		this.m_G = (40 + myrand(200)) / 255.0;
-        //		this.m_B = (40 + myrand(200)) / 255.0;
-        // This makes black and white sproingies for gray stairs.
-		/*		if (myrand(2)) {
-        			this.m_R = this.m_G = this.m_B = 40.0 / 255.0;
-        		}
-        		else {
-        			this.m_R = this.m_G = this.m_B = 240.0 / 255.0;
-        		}
-		
-		*/
 		//New properties to merge sproingies who collide
 		this.m_altR = this.m_R;
 		this.m_altG = this.m_G;
@@ -1330,8 +1320,7 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
 		setMaterial(sproingieShaderProgram, 1.0 - this.m_R, 1.0 - this.m_G, 1.0 - this.m_B, 0.5,
             this.m_R, this.m_G, this.m_B);
 	}
-		
-	//this.m_altR, this.m_altG, this.m_altB
+			
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sproingieBuffers.VertexIndex);
     gl.drawElements(gl.TRIANGLE_STRIP, sproingieBuffers.numIndices, gl.UNSIGNED_SHORT, 0);
 };
@@ -1878,10 +1867,9 @@ function SetMaxSproingies(max) {
       }
     }
     
-  function handleKeys(event) {
-	       // alert('Key code: ' + event.keyCode);
-        k = event.keyCode;
-        switch(k)
+  function handleKeys(event) {	    		
+	
+        switch(event.keyCode)
         {
             case 49: //1
 				selectedCam = 0;
@@ -1901,6 +1889,7 @@ function SetMaxSproingies(max) {
 				break;
         }
         //alert('selected camera =' + selectedCam);
+		ALT=false;
       }
     
 
@@ -1940,16 +1929,27 @@ function SetMaxSproingies(max) {
     document.ondblclick = handleDblClick;
     document.onkeypress = handleKeys;
 	document.onkeydown = handleKeyDown;
+	document.onkeyup = handleKeyUp;
 	
 	changeColorTimer();
 	
     tick();
   }
 
+  
+  function handleKeyUp(evt)
+  {	
+		
+	KEYDOWN=false;
+  }
   function handleKeyDown(evt)
   {
-  	if ( sproingieList[0].m_jumping )
-		return;
+	
+	
+	ALT=evt.altKey;
+		
+	if (KEYDOWN) return;
+	  
 	
 	switch (evt.keyCode)
 	{
@@ -2000,6 +2000,7 @@ function SetMaxSproingies(max) {
 			sproingieList[0].m_jumping = true;
                 break;    
 	}
+	KEYDOWN=true;
   }
   
   function insertInspector() {
