@@ -115,6 +115,7 @@ body {
 <script type="text/javascript" src="js/jquery-1.5.1.min.js"></script>
 <script type="text/javascript" src="js/jquery-ui-1.8.13.custom.min.js"></script>
 <script type="text/javascript" src="js/S1_b.js"></script>
+<script type="text/javascript" src="js/Teapot.js"></script>
 
 <!--
  ** Sproingie fragment & vertex shaders
@@ -360,13 +361,91 @@ body {
 </script>
 
 
+<script id="teapot-shader-fs" type="x-shader/x-fragment">
+    #ifdef GL_ES
+    precision highp float;
+    #endif
+
+    varying vec2 vTextureCoord;
+    varying vec3 vTransformedNormal;
+    varying vec4 vPosition;
+
+    uniform float uMaterialShininess;
+
+    uniform bool uShowSpecularHighlights;
+    uniform bool uUseLighting;
+    uniform bool uUseTextures;
+
+    uniform vec3 uAmbientColor;
+
+    uniform vec3 uPointLightingLocation;
+    uniform vec3 uPointLightingSpecularColor;
+    uniform vec3 uPointLightingDiffuseColor;
+
+    uniform sampler2D uSampler;
+
+    void main(void) {        
+        vec3 lightWeighting;
+        if (!uUseLighting) {
+            lightWeighting = vec3(1.0, 1.0, 1.0);
+        } else {
+            vec3 lightDirection = normalize(uPointLightingLocation - vPosition.xyz);
+            vec3 normal = normalize(vTransformedNormal);
+
+            float specularLightWeighting = 0.0;
+            if (uShowSpecularHighlights) {
+                vec3 eyeDirection = normalize(-vPosition.xyz);
+                vec3 reflectionDirection = reflect(-lightDirection, normal);
+
+                specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), uMaterialShininess);
+            }
+
+            float diffuseLightWeighting = max(dot(normal, lightDirection), 0.0);
+            lightWeighting = uAmbientColor
+                + uPointLightingSpecularColor * specularLightWeighting
+                + uPointLightingDiffuseColor * diffuseLightWeighting;
+        }
+
+        vec4 fragmentColor;
+        if (uUseTextures) {
+            fragmentColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)); 
+        } else {
+            fragmentColor = vec4(0.25, 0.41, 0.88, 1.0);
+        }
+           
+        gl_FragColor = vec4(fragmentColor.rgb * lightWeighting, fragmentColor.a);
+    }
+</script>
+
+<script id="teapot-shader-vs" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+    attribute vec2 aTextureCoord;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat3 uNMatrix;
+    
+    varying vec2 vTextureCoord;
+    varying vec3 vTransformedNormal;
+    varying vec4 vPosition;
+    
+    void main(void) {
+        vPosition = uMVMatrix * vec4(aVertexPosition, 1.0);
+        gl_Position = uPMatrix * vPosition;
+        vTextureCoord = aTextureCoord;
+        vTransformedNormal = uNMatrix * aVertexNormal;
+    }
+</script>
+
 <script type="text/javascript">
 var DIRECTION_UP=-1;
 var DIRECTION_DOWN=1;
 var TYPE_SLINKY =	0;
 var TYPE_JUMP =		1;
 var TYPE_ROLL =		2;
-var NUM_TYPES =		3;
+var TYPE_TEAPOT =  3;
+var NUM_TYPES =		4;
 
 var DEFAULT_NUM_SPROINGIES = 35;
 var DEFAULT_SPEED          = 18;
@@ -411,9 +490,11 @@ var isPaused = false;
 
 var groundBuffers;
 var sproingieBuffers;
+var teapotBuffers;
 var sproingieBoomBuffers;
 var groundShaderProgram;
 var sproingieShaderProgram;
+var tpshaderProgram;
 var sproingieBoomShaderProgram;
 var dotTexture;
 
@@ -587,6 +668,73 @@ function initShaders(shaderProgram, fsName, vsName) {
     shaderProgram.uMaterialAltColor = gl.getUniformLocation(shaderProgram, "uMaterialAltColor");
 }
 
+function initTeapotShaders(shaderProgram, fsName, vsName) {
+     var fragmentShader = getShader(gl, fsName);
+    var vertexShader = getShader(gl, vsName);
+
+     if ((fragmentShader !== null) && (vertexShader !== null)) {
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            alert("Could not initialise shaders");
+        }
+    }
+
+    gl.useProgram(shaderProgram);
+
+    shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+    gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+    
+    shaderProgram.vertexColorAttribute = gl.getAttribLocation(shaderProgram, "aVertexColor");
+    gl.enableVertexAttribArray(shaderProgram.vertexColorAttribute);
+
+    shaderProgram.vertexNormalAttribute = gl.getAttribLocation(shaderProgram, "aVertexNormal");
+    gl.enableVertexAttribArray(shaderProgram.vertexNormalAttribute);
+
+    shaderProgram.textureCoordAttribute = gl.getAttribLocation(shaderProgram, "aTextureCoord");
+    gl.enableVertexAttribArray(shaderProgram.textureCoordAttribute);
+    
+    shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
+    shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+    shaderProgram.nMatrixUniform = gl.getUniformLocation(shaderProgram, "uNMatrix");
+    shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "uSampler");
+    shaderProgram.materialShininessUniform = gl.getUniformLocation(shaderProgram, "uMaterialShininess");
+    shaderProgram.showSpecularHighlightsUniform = gl.getUniformLocation(shaderProgram, "uShowSpecularHighlights");
+    shaderProgram.useTexturesUniform = gl.getUniformLocation(shaderProgram, "uUseTextures");
+    shaderProgram.useLightingUniform = gl.getUniformLocation(shaderProgram, "uUseLighting");
+    shaderProgram.ambientColorUniform = gl.getUniformLocation(shaderProgram, "uAmbientColor");
+    shaderProgram.pointLightingLocationUniform = gl.getUniformLocation(shaderProgram, "uPointLightingLocation");
+    shaderProgram.pointLightingSpecularColorUniform = gl.getUniformLocation(shaderProgram, "uPointLightingSpecularColor");
+    shaderProgram.pointLightingDiffuseColorUniform = gl.getUniformLocation(shaderProgram, "uPointLightingDiffuseColor");
+}
+
+function handleTeapotLoadedTexture(texture) {
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+    gl.generateMipmap(gl.TEXTURE_2D);
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+
+var earthTexture;
+var galvanizedTexture;
+
+function initTeapotTextures() {
+    
+    galvanizedTexture = gl.createTexture();
+    galvanizedTexture.image = new Image();
+    galvanizedTexture.image.onload = function () {
+	handleTeapotLoadedTexture(galvanizedTexture)
+    }
+    galvanizedTexture.image.src = "images/arroway.de_metal+structure+06_d100_flat.jpg";
+}
+
 function initBoomShaders(shaderProgram, fsName, vsName) {
     var fragmentShader = getShader(gl, fsName);
     var vertexShader = getShader(gl, vsName);
@@ -714,6 +862,44 @@ function MakeNormal(v1, v2, normals) {
 	normals.push((v2[1] * v1[2]) - (v1[1] * v2[2]),
 				 (v2[2] * v1[0]) - (v1[2] * v2[0]),
 				 (v2[0] * v1[1]) - (v1[0] * v2[1]));
+}
+
+function drawTeapot(shaderProgram, sproingieMatrix) {
+
+    mat4.translate(sproingieMatrix, [0, 0.35, 0]);
+    mat4.scale(sproingieMatrix, [.03, .04, .04]);
+
+    gl.uniform1i(shaderProgram.showSpecularHighlightsUniform, true);
+
+    gl.uniform1i(shaderProgram.useLightingUniform, true);
+    gl.uniform3f(shaderProgram.ambientColorUniform, 0.5, 0.5, 0.5);
+    gl.uniform3f(shaderProgram.pointLightingLocationUniform, -.1, .04, -.020);
+    gl.uniform3f(shaderProgram.pointLightingSpecularColorUniform,3,3,3);
+    gl.uniform3f(shaderProgram.pointLightingDiffuseColorUniform,0.8,0.8,0.8);
+    gl.uniform1i(shaderProgram.useTexturesUniform, true);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, galvanizedTexture);
+        
+    gl.uniform1i(shaderProgram.samplerUniform, 0);
+
+    gl.uniform1f(shaderProgram.materialShininessUniform, 32.0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, teapotBuffers.VertexPositionBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, teapotBuffers.VertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, teapotBuffers.VertexTextureCoordBuffer);
+    gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, teapotBuffers.VertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, teapotBuffers.VertexNormalBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, teapotBuffers.VertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, teapotBuffers.VertexColorBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, teapotBuffers.VertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, teapotBuffers.VertexIndexBuffer);
+    setMatrixUniforms(shaderProgram, sproingieMatrix);
+    gl.drawElements(gl.TRIANGLES, teapotBuffers.VertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+ 
 }
 
 //
@@ -971,12 +1157,27 @@ Sproingie.prototype.ParametricSproingie = function( sproingie, sprType, fstage, 
  {
 	if (fstage < 0.0) { fstage = 0.0; }
 	if (fstage > 6.0) { fstage = 6.0; }
-
-	var fMoveX = (fstage > 2.0) ? ((Math.cos((fstage-2.0)*Math.PI*0.25)*-0.5+0.5)*fstage/6.0):0.0;
-	fMoveX += 0.5;
+		
+	var fMoveX;
+	var fMoveY;
+	var fMoveZ;
 	
-	var fMoveY = 0;
-	var fMoveZ = -0.5;
+	if (this.m_type == TYPE_TEAPOT)
+	{
+		fMoveX = (fstage > 2.0) ? ((Math.cos((fstage-2.0)*Math.PI*0.25)*-0.5+0.5)*fstage/6.0):0.0;
+		fMoveY = (fstage>2.0)?((fstage<4.0)?(0.25+0.25*Math.cos((fstage-4.0)*Math.PI*0.5)):(0.5-0.1325*((fstage-4.0)*(fstage-4.0)))):0.0;
+		fRotateZ = (fstage>1)?(Math.cos((fstage-1)*Math.PI/5.0)*-90.0+90.0):0.0;
+		mat4.translate(sproingieMatrix, [fMoveX + 0.5, fMoveY, -0.5]);
+		mat4.rotate(sproingieMatrix, fRotateZ * DegToRad, [0.0, 0.0, -1.0]);
+		return;
+	}
+	
+	fMoveX= (fstage > 2.0) ? ((Math.cos((fstage-2.0)*Math.PI*0.25)*-0.5+0.5)*fstage/6.0):0.0;
+	fMoveX += 0.5;
+
+	fMoveY = 0;
+	
+	fMoveZ= -0.5;
 	
 	if ( fstage > 2.0 )
 	{
@@ -1293,6 +1494,12 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
 	
 	this.ParametricSproingie( this, this.m_type, fstage, flipSproingieV, sproingieBuffers, sproingieMatrix);
 	
+	if (this.m_type == TYPE_TEAPOT)
+	{
+		drawTeapot(tpshaderProgram, sproingieMatrix)
+		return;
+	}
+	
     gl.bindBuffer(gl.ARRAY_BUFFER, sproingieBuffers.VertexPosition);
     gl.vertexAttribPointer(sproingieShaderProgram.vertexPositionAttribute,
         sproingieBuffers.itemSize, gl.FLOAT, false, 0, 0);
@@ -1324,6 +1531,8 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sproingieBuffers.VertexIndex);
     gl.drawElements(gl.TRIANGLE_STRIP, sproingieBuffers.numIndices, gl.UNSIGNED_SHORT, 0);
 };
+
+
 
 Sproingie.prototype.RenderSproingieBoom = function(sproingieBuffers, mvMatrix, dist) {
     var sproingieBoomMatrix = mat4.create(mvMatrix);
@@ -1555,6 +1764,16 @@ function SetMaxSproingies(max) {
       sproingieBuffers.UVCoords = gl.createBuffer();
       SproingieTriangleStrip(sproingieBuffers);
 
+	  
+	  //Teapots
+	  teapotBuffers = {};
+      teapotBuffers.VertexNormalBuffer = gl.createBuffer();
+      teapotBuffers.VertexTextureCoordBuffer = gl.createBuffer();
+      teapotBuffers.VertexPositionBuffer = gl.createBuffer();
+      teapotBuffers.VertexIndexBuffer = gl.createBuffer();
+	  teapotBuffers.VertexColorBuffer = gl.createBuffer();
+	  initTeapotBuffers(teapotBuffers);
+	  
       sproingieBoomBuffers = {};
       sproingieBoomBuffers.VertexPosition = gl.createBuffer();
 
@@ -1564,7 +1783,40 @@ function SetMaxSproingies(max) {
       sproingieBoomBuffers.numItems = s1_b_PNTS.length / sproingieBoomBuffers.itemSize;
   }
 
-
+  function initTeapotBuffers(buffers)
+  {
+		var teapotData = eval(teapotJSON);
+		buffers.VertexNormalBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, buffers.VertexNormalBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexNormals), gl.STATIC_DRAW);
+		buffers.VertexNormalBuffer.itemSize = 3;
+		buffers.VertexNormalBuffer.numItems = teapotData.vertexNormals.length / 3;
+		
+		buffers.VertexTextureCoordBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, buffers.VertexTextureCoordBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexTextureCoords), gl.STATIC_DRAW);
+		buffers.VertexTextureCoordBuffer.itemSize = 2;
+		buffers.VertexTextureCoordBuffer.numItems = teapotData.vertexTextureCoords.length / 2;
+		
+		buffers.VertexPositionBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, buffers.VertexPositionBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexPositions), gl.STATIC_DRAW);
+		buffers.VertexPositionBuffer.itemSize = 3;
+		buffers.VertexPositionBuffer.numItems = teapotData.vertexPositions.length / 3;
+		
+		buffers.VertexIndexBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.VertexIndexBuffer);
+		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(teapotData.indices), gl.STATIC_DRAW);
+		buffers.VertexIndexBuffer.itemSize = 1;
+		buffers.VertexIndexBuffer.numItems = teapotData.indices.length;
+		
+		buffers.VertexColorBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, buffers.VertexColorBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([1.0,0.0,1.0,1.0]), gl.STATIC_DRAW);
+		buffers.VertexColorBuffer.itemSize = 4;
+		buffers.VertexColorBuffer.numItems = 1;
+  }
+  
   function drawScene() {
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -1622,10 +1874,7 @@ function SetMaxSproingies(max) {
     //
     // Render the Sproingies!
     //
-    gl.useProgram(sproingieShaderProgram);
-
-    setLights(sproingieShaderProgram, worldMatrix);
-    setProjectionUniforms(sproingieShaderProgram, pMatrix, groundPos);
+    
 
     var numSproingies = sproingieList.length;
     var t;
@@ -1633,7 +1882,22 @@ function SetMaxSproingies(max) {
     for (t = 0; t < numSproingies; ++t) {
         if ((sproingieList[t].m_life > 0.0) &&
             (sproingieList[t].m_stage < (BOOM_STAGE - 0.001))) {
+			{
+				if (sproingieList[t].m_type != TYPE_TEAPOT)
+				{
+					gl.useProgram(sproingieShaderProgram);
+					setLights(sproingieShaderProgram, worldMatrix);
+					setProjectionUniforms(sproingieShaderProgram, pMatrix, groundPos);
+				}
+				else
+				{
+					gl.useProgram(tpshaderProgram);
+					setLights(tpshaderProgram, worldMatrix);
+					setProjectionUniforms(tpshaderProgram, pMatrix, groundPos);
+				}
             sproingieList[t].RenderSproingie(sproingieBuffers, mvMatrix);
+			
+			}
         }
     }
     
@@ -1905,6 +2169,10 @@ function SetMaxSproingies(max) {
     initShaders(sproingieShaderProgram, "shader-fs-sproingie", "shader-vs-sproingie");
     sproingieBoomShaderProgram = gl.createProgram();
     initBoomShaders(sproingieBoomShaderProgram, "shader-fs-boom", "shader-vs-boom");
+	tpshaderProgram = gl.createProgram();
+	initTeapotShaders(tpshaderProgram, "teapot-shader-fs", "teapot-shader-vs");
+
+	
 
     initBuffers();
     initTextures();

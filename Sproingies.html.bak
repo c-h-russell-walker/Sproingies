@@ -115,6 +115,7 @@ body {
 <script type="text/javascript" src="js/jquery-1.5.1.min.js"></script>
 <script type="text/javascript" src="js/jquery-ui-1.8.13.custom.min.js"></script>
 <script type="text/javascript" src="js/S1_b.js"></script>
+<script type="text/javascript" src="js/Teapot.js"></script>
 
 <!--
  ** Sproingie fragment & vertex shaders
@@ -360,6 +361,83 @@ body {
 </script>
 
 
+<script id="teapot-shader-fs" type="x-shader/x-fragment">
+    #ifdef GL_ES
+    precision highp float;
+    #endif
+
+    varying vec2 vTextureCoord;
+    varying vec3 vTransformedNormal;
+    varying vec4 vPosition;
+
+    uniform float uMaterialShininess;
+
+    uniform bool uShowSpecularHighlights;
+    uniform bool uUseLighting;
+    uniform bool uUseTextures;
+
+    uniform vec3 uAmbientColor;
+
+    uniform vec3 uPointLightingLocation;
+    uniform vec3 uPointLightingSpecularColor;
+    uniform vec3 uPointLightingDiffuseColor;
+
+    uniform sampler2D uSampler;
+
+    void main(void) {        
+        vec3 lightWeighting;
+        if (!uUseLighting) {
+            lightWeighting = vec3(1.0, 1.0, 1.0);
+        } else {
+            vec3 lightDirection = normalize(uPointLightingLocation - vPosition.xyz);
+            vec3 normal = normalize(vTransformedNormal);
+
+            float specularLightWeighting = 0.0;
+            if (uShowSpecularHighlights) {
+                vec3 eyeDirection = normalize(-vPosition.xyz);
+                vec3 reflectionDirection = reflect(-lightDirection, normal);
+
+                specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), uMaterialShininess);
+            }
+
+            float diffuseLightWeighting = max(dot(normal, lightDirection), 0.0);
+            lightWeighting = uAmbientColor
+                + uPointLightingSpecularColor * specularLightWeighting
+                + uPointLightingDiffuseColor * diffuseLightWeighting;
+        }
+
+        vec4 fragmentColor;
+        if (uUseTextures) {
+            fragmentColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)); 
+        } else {
+            fragmentColor = vec4(0.25, 0.41, 0.88, 1.0);
+        }
+           
+        gl_FragColor = vec4(fragmentColor.rgb * lightWeighting, fragmentColor.a);
+    }
+</script>
+
+<script id="teapot-shader-vs" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+    attribute vec2 aTextureCoord;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat3 uNMatrix;
+    
+    varying vec2 vTextureCoord;
+    varying vec3 vTransformedNormal;
+    varying vec4 vPosition;
+    
+    void main(void) {
+        vPosition = uMVMatrix * vec4(aVertexPosition, 1.0);
+        gl_Position = uPMatrix * vPosition;
+        vTextureCoord = aTextureCoord;
+        vTransformedNormal = uNMatrix * aVertexNormal;
+    }
+</script>
+
 <script type="text/javascript">
 var DIRECTION_UP=-1;
 var DIRECTION_DOWN=1;
@@ -414,6 +492,7 @@ var sproingieBuffers;
 var sproingieBoomBuffers;
 var groundShaderProgram;
 var sproingieShaderProgram;
+var tpshaderProgram;
 var sproingieBoomShaderProgram;
 var dotTexture;
 
@@ -423,7 +502,7 @@ var nextGroundRGB = [ 0.156863, 0.156863, 0.392157 ];
 
 
 var worldWidth=8;
-var worldHeight=5;
+var worldHeight=2;
 
 var BOXINESS = 0;
 
@@ -436,6 +515,9 @@ var lightRotSpeed = 0.05;
 var rotCameraX = [0.0, 0.0, 0.0, 0.0];
 var rotCameraY = [0.0, 0.0, 0.0, 0.0];
 var rotCameraZ = 0.0;
+
+var KEYDOWN=false;
+var ALT=false;
 
 var eye = [0.0, 0.0, 16.0];
 var lookAt = [0.0, 1.0, 0.0];
@@ -785,7 +867,7 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
         }
 				
 		var locX = -this.m_X-this.m_Y/2;
-		//var locY = -this.m_Y;
+		
 			//Right Side			Left Side
 		if ( ((locX < -worldWidth) || (locX > worldWidth) || (Math.abs(this.m_Y/2) >= worldHeight)) &&	this.m_life > 10.0)	
 			{
@@ -836,7 +918,7 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
             }
         }
         else {
-            //if (index !=0) //never expire the main Sproingie
+            if (index !=0) //never expire the main Sproingie
 				this.m_life -= nextStage;
         }
     }
@@ -918,20 +1000,8 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
         else {
             this.m_speed = 1.0;
         }
+	}
 
-        // This makes pink-compatible Sproingies for a possible Valentine's Day easter egg.
-        //		this.m_R = 1.0;
-        //		this.m_G = (40 + myrand(200)) / 255.0;
-        //		this.m_B = (40 + myrand(200)) / 255.0;
-        // This makes black and white sproingies for gray stairs.
-		/*		if (myrand(2)) {
-        			this.m_R = this.m_G = this.m_B = 40.0 / 255.0;
-        		}
-        		else {
-        			this.m_R = this.m_G = this.m_B = 240.0 / 255.0;
-        		}
-		
-		*/
 		//New properties to merge sproingies who collide
 		this.m_altR = this.m_R;
 		this.m_altG = this.m_G;
@@ -1329,8 +1399,7 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
 		setMaterial(sproingieShaderProgram, 1.0 - this.m_R, 1.0 - this.m_G, 1.0 - this.m_B, 0.5,
             this.m_R, this.m_G, this.m_B);
 	}
-		
-	//this.m_altR, this.m_altG, this.m_altB
+			
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sproingieBuffers.VertexIndex);
     gl.drawElements(gl.TRIANGLE_STRIP, sproingieBuffers.numIndices, gl.UNSIGNED_SHORT, 0);
 };
@@ -1877,10 +1946,9 @@ function SetMaxSproingies(max) {
       }
     }
     
-  function handleKeys(event) {
-	       // alert('Key code: ' + event.keyCode);
-        k = event.keyCode;
-        switch(k)
+  function handleKeys(event) {	    		
+	
+        switch(event.keyCode)
         {
             case 49: //1
 				selectedCam = 0;
@@ -1900,6 +1968,7 @@ function SetMaxSproingies(max) {
 				break;
         }
         //alert('selected camera =' + selectedCam);
+		ALT=false;
       }
     
 
@@ -1939,16 +2008,27 @@ function SetMaxSproingies(max) {
     document.ondblclick = handleDblClick;
     document.onkeypress = handleKeys;
 	document.onkeydown = handleKeyDown;
+	document.onkeyup = handleKeyUp;
 	
 	changeColorTimer();
 	
     tick();
   }
 
+  
+  function handleKeyUp(evt)
+  {	
+		
+	KEYDOWN=false;
+  }
   function handleKeyDown(evt)
   {
-  	if ( sproingieList[0].m_jumping )
-		return;
+	
+	
+	ALT=evt.altKey;
+		
+	if (KEYDOWN) return;
+	  
 	
 	switch (evt.keyCode)
 	{
@@ -1999,6 +2079,7 @@ function SetMaxSproingies(max) {
 			sproingieList[0].m_jumping = true;
                 break;    
 	}
+	KEYDOWN=true;
   }
   
   function insertInspector() {
