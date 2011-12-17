@@ -2105,6 +2105,7 @@ function SetMaxSproingies(max) {
 		
 		//
 		// Render the explosions
+		// If level is won explode all the bad guys with this new explosion
 		//
 		gl.useProgram(sproingieExplodeShaderProgram);
     setProjectionUniforms(sproingieExplodeShaderProgram, pMatrix, groundPos);
@@ -2145,11 +2146,9 @@ function SetMaxSproingies(max) {
 
     gl.drawArrays(gl.TRIANGLES, 0, pointLifetimesBuffer.numItems);
 		/*
+		// Need to have event when level is won to know to 'kill' all sproingies - except for hero
 		for (t = 0; t < numSproingies; ++t) {
-        if ((sproingieList[t].m_life > 0.000001) &&
-            (sproingieList[t].m_stage >= (BOOM_STAGE - 0.001))) {
-            sproingieList[t].RenderSproingieBoom(sproingieBuffers, mvMatrix, dist);
-        }
+        sproingieList[t].RenderSproingieExplosion(sproingieBuffers, mvMatrix, dist);
     }*/
 		gl.disable(gl.BLEND);
 }
