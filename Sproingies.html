@@ -253,6 +253,58 @@ body {
   }
 </script>
 
+<!--
+ ** Dying Sproingie explosion(2) fragment & vertex shaders
+ -->
+<script id="shader-fs-explode" type="x-shader/x-fragment">
+  precision mediump float;
+
+  uniform vec4 uColor;
+
+  varying float vLifetime;
+  varying vec2 vTextureCoords;
+
+  uniform sampler2D sTexture;
+
+
+  void main(void) {
+    vec4 texColor;
+    texColor = texture2D(sTexture, vTextureCoords);
+    gl_FragColor = vec4(uColor) * texColor;
+    gl_FragColor.a *= vLifetime;
+  }
+</script>
+
+<script id="shader-vs-explode" type="x-shader/x-vertex">
+  uniform float uTime;
+  uniform vec3 uCenterPosition;
+
+  attribute float aLifetime;
+  attribute vec3 aStartPosition;
+  attribute vec3 aEndPosition;
+  attribute vec2 aOffset;
+  attribute vec2 aTextureCoords;
+
+  varying float vLifetime;
+  varying vec2 vTextureCoords;
+
+
+  void main(void) {
+    if (uTime <= aLifetime) {
+      gl_Position.xyz = aStartPosition + (uTime * aEndPosition);
+      gl_Position.xyz += uCenterPosition;
+      gl_Position.w = 1.0;
+    } else {
+      gl_Position = vec4(-1000, -1000, 0, 0);
+    }
+
+    vLifetime = 1.0 - (uTime / aLifetime);
+    vLifetime = clamp(vLifetime, 0.0, 1.0);
+    float size = (vLifetime * vLifetime) * 0.1;
+    gl_Position.xy += aOffset.xy * size;
+    vTextureCoords = aTextureCoords;
+  }
+</script>
 
 <!--
  ** Ground fragment & vertex shaders
@@ -497,6 +549,11 @@ var sproingieShaderProgram;
 var tpshaderProgram;
 var sproingieBoomShaderProgram;
 var dotTexture;
+var pointLifetimesBuffer;
+var pointStartPositionsBuffer;
+var pointEndPositionsBuffer;
+var pointOffsetsBuffer;
+var pointTextureCoordsBuffer;
 
 var colorTime=0;
 var groundRGB = [ 0.156863, 0.156863, 0.392157 ];
@@ -768,6 +825,41 @@ function initBoomShaders(shaderProgram, fsName, vsName) {
     //  uniform sampler2D uDotSampler;
     shaderProgram.uColor = gl.getUniformLocation(shaderProgram, "uColor");
     shaderProgram.uDotSampler = gl.getUniformLocation(shaderProgram, "uDotSampler");
+}
+
+function initExplodeShaders(shaderProgram, fsName, vsName) {
+    var fragmentShader = getShader(gl, fsName);
+    var vertexShader = getShader(gl, vsName);
+
+    gl.attachShader(shaderProgram, vertexShader);
+    gl.attachShader(shaderProgram, fragmentShader);
+    gl.linkProgram(shaderProgram);
+
+    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+      alert("Could not initialise shaders");
+    }
+
+    gl.useProgram(shaderProgram);
+
+    shaderProgram.pointLifetimeAttribute = gl.getAttribLocation(shaderProgram, "aLifetime");
+    gl.enableVertexAttribArray(shaderProgram.pointLifetimeAttribute);
+
+    shaderProgram.pointStartPositionAttribute = gl.getAttribLocation(shaderProgram, "aStartPosition");
+    gl.enableVertexAttribArray(shaderProgram.pointStartPositionAttribute);
+
+    shaderProgram.pointEndPositionAttribute = gl.getAttribLocation(shaderProgram, "aEndPosition");
+    gl.enableVertexAttribArray(shaderProgram.pointEndPositionAttribute);
+
+    shaderProgram.pointOffsetAttribute = gl.getAttribLocation(shaderProgram, "aOffset");
+    gl.enableVertexAttribArray(shaderProgram.pointOffsetAttribute);
+
+    shaderProgram.pointTextureCoordsAttribute = gl.getAttribLocation(shaderProgram, "aTextureCoords");
+    gl.enableVertexAttribArray(shaderProgram.pointTextureCoordsAttribute);
+
+    shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "sTexture");
+    shaderProgram.centerPositionUniform = gl.getUniformLocation(shaderProgram, "uCenterPosition");
+    shaderProgram.colorUniform = gl.getUniformLocation(shaderProgram, "uColor");
+    shaderProgram.timeUniform = gl.getUniformLocation(shaderProgram, "uTime");
 }
 
 //
@@ -1781,6 +1873,98 @@ function SetMaxSproingies(max) {
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(s1_b_PNTS), gl.STATIC_DRAW);
       sproingieBoomBuffers.itemSize = 3;
       sproingieBoomBuffers.numItems = s1_b_PNTS.length / sproingieBoomBuffers.itemSize;
+			
+			// Explosions
+			var numParticles = 3000;
+
+    lifetimes = [];
+    startPositions = [];
+    endPositions = [];
+    offsets = [];
+    textureCoords = [];
+    offsetsCycle = [
+      -1,  1,
+      -1, -1,
+       1,  1,
+       1, -1,
+      -1, -1,
+       1,  1,
+    ];
+    textureCoordsCycle = [
+      0, 1,
+      0, 0,
+      1, 1,
+      1, 0,
+      0, 0,
+      1, 1,
+    ];
+    for (var i=0; i < numParticles; i++)  {
+      var lifetime = (Math.random() * 0.75) + 0.25;
+
+      var distance = Math.random() * 0.1 - 0.05;
+      var theta = Math.random() * 2 * Math.PI;
+      var phi =  Math.random() * 2 * Math.PI;
+
+      var startX = distance * Math.cos(phi) * Math.sin(theta);
+      var startY = distance * Math.cos(theta);
+      var startZ = distance * Math.sin(phi) * Math.sin(theta);
+
+      var distance = Math.random() * 3 - 1;
+      var theta = Math.random() * 2 * Math.PI;
+      var phi =  Math.random() * 2 * Math.PI;
+
+      var endX = distance * Math.cos(phi) * Math.sin(theta);
+      var endY = distance * Math.cos(theta);
+      var endZ = distance * Math.sin(phi) * Math.sin(theta);
+
+      for (var v=0; v < 6; v++) {
+        lifetimes.push(lifetime);
+
+        startPositions.push(startX);
+        startPositions.push(startY);
+        startPositions.push(startZ);
+
+        endPositions.push(endX);
+        endPositions.push(endY);
+        endPositions.push(endZ);
+
+        offsets.push(offsetsCycle[v * 2]);
+        offsets.push(offsetsCycle[v * 2 + 1]);
+
+        textureCoords.push(textureCoordsCycle[v * 2]);
+        textureCoords.push(textureCoordsCycle[v * 2 + 1]);
+      }
+    }
+
+    pointLifetimesBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointLifetimesBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lifetimes), gl.STATIC_DRAW);
+    pointLifetimesBuffer.itemSize = 1;
+    pointLifetimesBuffer.numItems = numParticles * 6;
+
+    pointStartPositionsBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointStartPositionsBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(startPositions), gl.STATIC_DRAW);
+    pointStartPositionsBuffer.itemSize = 3;
+    pointStartPositionsBuffer.numItems = numParticles * 6;
+
+    pointEndPositionsBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointEndPositionsBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(endPositions), gl.STATIC_DRAW);
+    pointEndPositionsBuffer.itemSize = 3;
+    pointEndPositionsBuffer.numItems = numParticles * 6;
+
+    pointOffsetsBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointOffsetsBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(offsets), gl.STATIC_DRAW);
+    pointOffsetsBuffer.itemSize = 2;
+    pointOffsetsBuffer.numItems = numParticles * 6;
+
+    pointTextureCoordsBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointTextureCoordsBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoords), gl.STATIC_DRAW);
+    pointTextureCoordsBuffer.itemSize = 2;
+    pointTextureCoordsBuffer.numItems = numParticles * 6;
   }
 
   function initTeapotBuffers(buffers)
@@ -1874,8 +2058,6 @@ function SetMaxSproingies(max) {
     //
     // Render the Sproingies!
     //
-    
-
     var numSproingies = sproingieList.length;
     var t;
 
@@ -1902,7 +2084,7 @@ function SetMaxSproingies(max) {
     }
     
     //
-    // Render the explosions
+    // Render the booms (original)
     //
     gl.useProgram(sproingieBoomShaderProgram);
     setProjectionUniforms(sproingieBoomShaderProgram, pMatrix, groundPos);
@@ -1919,7 +2101,79 @@ function SetMaxSproingies(max) {
         }
     }
     gl.disable(gl.BLEND);
+		
+		//
+		// Render the explosions
+		//
+		gl.useProgram(sproingieExplodeShaderProgram);
+    setProjectionUniforms(sproingieExplodeShaderProgram, pMatrix, groundPos);
+		/*
+		var time = 1.0;
+		var centerPos;
+		centerPos = [Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5];
+		var color;
+		color = [Math.random() / 2 + 0.5, Math.random() / 2 + 0.5, Math.random() / 2 + 0.5, 0.5];
+		*/
+		gl.bindBuffer(gl.ARRAY_BUFFER, pointLifetimesBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointLifetimeAttribute, pointLifetimesBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointStartPositionsBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointStartPositionAttribute, pointStartPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointEndPositionsBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointEndPositionAttribute, pointEndPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointOffsetsBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointOffsetAttribute, pointOffsetsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointTextureCoordsBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointTextureCoordsAttribute, pointTextureCoordsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+		
+		gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.uniform1i(sproingieExplodeShaderProgram.samplerUniform, 0);
+
+    /*
+		gl.uniform3f(sproingieExplodeShaderProgram.centerPositionUniform, centerPos[0], centerPos[1], centerPos[2]);
+    gl.uniform4f(sproingieExplodeShaderProgram.colorUniform, color[0], color[1], color[2], color[3]);
+    gl.uniform1f(sproingieExplodeShaderProgram.timeUniform, time);
+    */
+
+    gl.drawArrays(gl.TRIANGLES, 0, pointLifetimesBuffer.numItems);
+		/*
+		for (t = 0; t < numSproingies; ++t) {
+        if ((sproingieList[t].m_life > 0.000001) &&
+            (sproingieList[t].m_stage >= (BOOM_STAGE - 0.001))) {
+            sproingieList[t].RenderSproingieBoom(sproingieBuffers, mvMatrix, dist);
+        }
+    }*/
+		gl.disable(gl.BLEND);
 }
+
+  function handleLoadedTexture(texture) {
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
+  }
+
+
+  var texture;
+  function initTexture() {
+    texture = gl.createTexture();
+    texture.image = new Image();
+    texture.image.onload = function() {
+      handleLoadedTexture(texture)
+    }
+
+    texture.image.src = "images/smoke.gif";
+  }
 
   function nextSproingie(timePassed) {
       var nextStage = timePassed * howfast * 0.333333333;
@@ -2160,6 +2414,7 @@ function SetMaxSproingies(max) {
   function webGLStart() {
     var canvas = document.getElementById(glCanvasName);
     initGL(canvas);
+		initTexture();
     if (!gl) { return; }
     window.onresize = resizeGL;
     
@@ -2169,10 +2424,10 @@ function SetMaxSproingies(max) {
     initShaders(sproingieShaderProgram, "shader-fs-sproingie", "shader-vs-sproingie");
     sproingieBoomShaderProgram = gl.createProgram();
     initBoomShaders(sproingieBoomShaderProgram, "shader-fs-boom", "shader-vs-boom");
-	tpshaderProgram = gl.createProgram();
-	initTeapotShaders(tpshaderProgram, "teapot-shader-fs", "teapot-shader-vs");
-
-	
+		sproingieExplodeShaderProgram = gl.createProgram();
+    initExplodeShaders(sproingieExplodeShaderProgram, "shader-fs-explode", "shader-vs-explode");
+		tpshaderProgram = gl.createProgram();
+		initTeapotShaders(tpshaderProgram, "teapot-shader-fs", "teapot-shader-vs");
 
     initBuffers();
     initTextures();
