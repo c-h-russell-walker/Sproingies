@@ -544,6 +544,7 @@ var groundBuffers;
 var sproingieBuffers;
 var teapotBuffers;
 var sproingieBoomBuffers;
+var sproingieExplodeBuffers;
 var groundShaderProgram;
 var sproingieShaderProgram;
 var tpshaderProgram;
@@ -1655,20 +1656,47 @@ Sproingie.prototype.RenderSproingieExplode = function(sproingieBuffers, mvMatrix
     mat4.translate(sproingieExplodeMatrix, [this.m_X + 0.5, this.m_Y + 0.5, this.m_Z - 0.5]);
     var scale = ((this.m_stage - BOOM_STAGE) * 2.0);
     mat4.scale(sproingieExplodeMatrix, [scale, scale, scale]);
-    
+    /*
     var pointsize = ((BOOM_STAGE + 8.0) - this.m_stage) - (dist / 64.0);
     if (pointsize < 1.0) {
         pointsize = 1.0;
-    }
+    }*/
+
+		var pointsize = 1.0;
 
     gl.bindBuffer(gl.ARRAY_BUFFER, sproingieExplodeBuffers.VertexPosition);
-    gl.vertexAttribPointer(sproingieExplodeBuffers.vertexPositionAttribute,
-        sproingieExplodeBuffers.itemSize, gl.FLOAT, false, 0, 0);
+		
+		var centerPos;
+		centerPos = [Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5];
+		var color;
+		color = [Math.random() / 2 + 0.5, Math.random() / 2 + 0.5, Math.random() / 2 + 0.5, 0.5];
+		
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointLifetimeAttribute, pointLifetimesBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
-    setBoomUniforms(sproingieExplodeShaderProgram, sproingieExplodeMatrix,
-        this.m_R, this.m_G, this.m_B, pointsize);
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointStartPositionsBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointStartPositionAttribute, pointStartPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointEndPositionsBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointEndPositionAttribute, pointEndPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointOffsetsBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointOffsetAttribute, pointOffsetsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointTextureCoordsBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointTextureCoordsAttribute, pointTextureCoordsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+   // setBoomUniforms(sproingieExplodeShaderProgram, sproingieExplodeMatrix,
+     //   this.m_R, this.m_G, this.m_B, pointsize);
+		
+		gl.uniform3f(sproingieExplodeShaderProgram.centerPositionUniform, centerPos[0], centerPos[1], centerPos[2]);
+		gl.uniform4f(sproingieExplodeShaderProgram.colorUniform, color[0], color[1], color[2], color[3]);
+		
+		gl.vertexAttribPointer(sproingieExplodeBuffers.vertexPositionAttribute,
+        sproingieExplodeBuffers.itemSize, gl.FLOAT, false, 0, 0);
+		
+		gl.drawArrays(gl.TRIANGLES, 0, sproingieExplodeBuffers.numItems);
         
-    gl.drawArrays(gl.POINTS, 0, sproingieExplodeBuffers.numItems);
+    //gl.drawArrays(gl.POINTS, 0, sproingieExplodeBuffers.numItems);
 };
 
 function SproingieTriangleStrip(sproingieBuffers) {
@@ -1896,6 +1924,14 @@ function SetMaxSproingies(max) {
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(s1_b_PNTS), gl.STATIC_DRAW);
       sproingieBoomBuffers.itemSize = 3;
       sproingieBoomBuffers.numItems = s1_b_PNTS.length / sproingieBoomBuffers.itemSize;
+			
+			sproingieExplodeBuffers = {};
+      sproingieExplodeBuffers.VertexPosition = gl.createBuffer();
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, sproingieExplodeBuffers.VertexPosition);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(s1_b_PNTS), gl.STATIC_DRAW);
+      sproingieExplodeBuffers.itemSize = 3;
+      sproingieExplodeBuffers.numItems = s1_b_PNTS.length / sproingieExplodeBuffers.itemSize;
 			
 			// Explosions
 			var numParticles = 3000;
@@ -2131,26 +2167,6 @@ function SetMaxSproingies(max) {
 		//
 		gl.useProgram(sproingieExplodeShaderProgram);
     setProjectionUniforms(sproingieExplodeShaderProgram, pMatrix, groundPos);
-		
-		var centerPos;
-		centerPos = [Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5];
-		var color;
-		color = [Math.random() / 2 + 0.5, Math.random() / 2 + 0.5, Math.random() / 2 + 0.5, 0.5];
-		
-		gl.bindBuffer(gl.ARRAY_BUFFER, pointLifetimesBuffer);
-    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointLifetimeAttribute, pointLifetimesBuffer.itemSize, gl.FLOAT, false, 0, 0);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, pointStartPositionsBuffer);
-    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointStartPositionAttribute, pointStartPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, pointEndPositionsBuffer);
-    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointEndPositionAttribute, pointEndPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, pointOffsetsBuffer);
-    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointOffsetAttribute, pointOffsetsBuffer.itemSize, gl.FLOAT, false, 0, 0);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, pointTextureCoordsBuffer);
-    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointTextureCoordsAttribute, pointTextureCoordsBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
@@ -2158,14 +2174,10 @@ function SetMaxSproingies(max) {
 		gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.uniform1i(sproingieExplodeShaderProgram.samplerUniform, 0);    
-
-    gl.drawArrays(gl.TRIANGLES, 0, pointLifetimesBuffer.numItems);
 		
 		// Need to have event when level is won to know to 'kill' all sproingies - except for hero
 		for (t = 0; t < numSproingies; ++t) {
-        //sproingieList[t].RenderSproingieExplode(sproingieBuffers, mvMatrix, dist);
-				gl.uniform3f(sproingieExplodeShaderProgram.centerPositionUniform, centerPos[0], centerPos[1], centerPos[2]);
-				gl.uniform4f(sproingieExplodeShaderProgram.colorUniform, color[0], color[1], color[2], color[3]);
+        sproingieList[t].RenderSproingieExplode(sproingieBuffers, mvMatrix, dist);
     }
 		gl.disable(gl.BLEND);
 }
