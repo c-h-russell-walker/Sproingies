@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html><head><meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1" />
 <title>Sproingies in WebGL</title>
+<link rel="icon" 
+      type="image/jpg" 
+      href="images/icon_Sproingie.jpg">
 <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1" />
 <style type="text/css">
 body {
@@ -170,9 +173,7 @@ body {
     vec4 diffuse  = vec4(0.0);
     vec4 specular = vec4(0.0);
 
- // pointLight(n, vViewPos.xyz, 50.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
     pointLight(n, vViewPos.xyz, 1000.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
- // pointLight(n, vViewPos.xyz, 0.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
    
     pointLight(n, vViewPos.xyz, 50.0, diffuse, specular, uFillLightColor, uFillLightPos);
 
@@ -258,7 +259,10 @@ body {
  ** Dying Sproingie explosion(2) fragment & vertex shaders
  -->
 <script id="shader-fs-explode" type="x-shader/x-fragment">
-  precision mediump float;
+  #ifdef GL_ES
+  precision highp float;
+  #endif
+	//precision mediump float;
 
   uniform vec4 uColor;
 
@@ -266,7 +270,6 @@ body {
   varying vec2 vTextureCoords;
 
   uniform sampler2D sTexture;
-
 
   void main(void) {
     vec4 texColor;
@@ -279,30 +282,39 @@ body {
 <script id="shader-vs-explode" type="x-shader/x-vertex">
   uniform float uTime;
   uniform vec3 uCenterPosition;
+	
+	uniform mat4 uMVMatrix;
+  uniform mat4 uProjMatrix;
+	//uniform float uPointsize;
 
   attribute float aLifetime;
   attribute vec3 aStartPosition;
   attribute vec3 aEndPosition;
   attribute vec2 aOffset;
   attribute vec2 aTextureCoords;
+	
+	attribute vec3 aVertexPosition;
 
   varying float vLifetime;
   varying vec2 vTextureCoords;
 
 
   void main(void) {
-    if (uTime <= aLifetime) {
-      gl_Position.xyz = aStartPosition + (uTime * aEndPosition);
+    //if (uTime <= aLifetime) {
+      /*gl_Position.xyz = aStartPosition + (uTime * aEndPosition);
       gl_Position.xyz += uCenterPosition;
-      gl_Position.w = 1.0;
-    } else {
+      gl_Position.w = 1.0;*/
+			gl_Position = uProjMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+			//gl_Position = vec4(aVertexPosition, 1.0);
+    /*} else {
       gl_Position = vec4(-1000, -1000, 0, 0);
-    }
+    }*/
+		//gl_PointSize = uPointSize;
 
     vLifetime = 1.0 - (uTime / aLifetime);
     vLifetime = clamp(vLifetime, 0.0, 1.0);
     float size = (vLifetime * vLifetime) * 0.1;
-    gl_Position.xy += aOffset.xy * size;
+    //gl_Position.xy += aOffset.xy * size;
     vTextureCoords = aTextureCoords;
   }
 </script>
@@ -862,13 +874,12 @@ function handlemacbookLoadedTexture(texture) {
     gl.bindTexture(gl.TEXTURE_2D, null);
 }
 
-
 function initmacbookTextures() {
     
     galvanizedTexture = gl.createTexture();
     galvanizedTexture.image = new Image();
     galvanizedTexture.image.onload = function () {
-	handlemacbookLoadedTexture(galvanizedTexture)
+				handlemacbookLoadedTexture(galvanizedTexture)
     }
     galvanizedTexture.image.src = "images/arroway.de_metal+structure+06_d100_flat.jpg";
 }
@@ -932,7 +943,7 @@ function initTeapotTextures() {
     galvanizedTexture = gl.createTexture();
     galvanizedTexture.image = new Image();
     galvanizedTexture.image.onload = function () {
-	handleTeapotLoadedTexture(galvanizedTexture)
+				handleTeapotLoadedTexture(galvanizedTexture)
     }
     galvanizedTexture.image.src = "images/arroway.de_metal+structure+06_d100_flat.jpg";
 }
@@ -985,6 +996,9 @@ function initExplodeShaders(shaderProgram, fsName, vsName) {
     }
 
     gl.useProgram(shaderProgram);
+		
+		shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+    gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
 
     shaderProgram.pointLifetimeAttribute = gl.getAttribLocation(shaderProgram, "aLifetime");
     gl.enableVertexAttribArray(shaderProgram.pointLifetimeAttribute);
@@ -1005,6 +1019,10 @@ function initExplodeShaders(shaderProgram, fsName, vsName) {
     shaderProgram.centerPositionUniform = gl.getUniformLocation(shaderProgram, "uCenterPosition");
     shaderProgram.colorUniform = gl.getUniformLocation(shaderProgram, "uColor");
     shaderProgram.timeUniform = gl.getUniformLocation(shaderProgram, "uTime");
+		
+		shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uProjMatrix");
+    shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+    //shaderProgram.uPointSize = gl.getUniformLocation(shaderProgram, "uPointSize");
 }
 
 //
@@ -1079,7 +1097,7 @@ function setBoomUniforms(shaderProgram, mvMatrix, r, g, b, pointSize) {
 function setExplodeUniforms(shaderProgram, mvMatrix, r, g, b, pointSize) {
 		gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
 		gl.uniform4f(shaderProgram.colorUniform, r, g, b, 1.0);
-		
+		gl.uniform1f(shaderProgram.uPointSize, pointSize);
 		//gl.uniform3f(sproingieExplodeShaderProgram.centerPositionUniform, this.m_X, this.m_Y, this.m_Z);
 }
 
@@ -1868,36 +1886,33 @@ Sproingie.prototype.RenderSproingieExplode = function(sproingieBuffers, mvMatrix
         pointsize = 1.0;
     }
 
-    //gl.bindBuffer(gl.ARRAY_BUFFER, sproingieExplodeBuffers.VertexPosition);
-		
-    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointLifetimeAttribute,
-													 sproingieExplodeBuffers.itemSize, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, sproingieExplodeBuffers.VertexPosition);	
+    //gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointLifetimeAttribute,
+			//										 sproingieExplodeBuffers.itemSize, gl.FLOAT, false, 0, 0);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, pointStartPositionsBuffer);
+/*    gl.bindBuffer(gl.ARRAY_BUFFER, pointStartPositionsBuffer);
     gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointStartPositionAttribute, pointStartPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
-		/*
+*/	/*
     gl.bindBuffer(gl.ARRAY_BUFFER, pointEndPositionsBuffer);
     gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointEndPositionAttribute, pointEndPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
 		*/
-    gl.bindBuffer(gl.ARRAY_BUFFER, pointOffsetsBuffer);
+    /*gl.bindBuffer(gl.ARRAY_BUFFER, pointOffsetsBuffer);
     gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointOffsetAttribute, pointOffsetsBuffer.itemSize, gl.FLOAT, false, 0, 0);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, pointTextureCoordsBuffer);
-    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointTextureCoordsAttribute, pointTextureCoordsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		*/
+    //gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointTextureCoordsAttribute, pointTextureCoordsBuffer.itemSize, gl.FLOAT, false, 0, 0);
 
 		gl.vertexAttribPointer(sproingieExplodeBuffers.vertexPositionAttribute,
         sproingieExplodeBuffers.itemSize, gl.FLOAT, false, 0, 0);
 
     setExplodeUniforms(sproingieExplodeShaderProgram, sproingieExplodeMatrix,
-        this.m_R, this.m_G, this.m_B, pointsize);
-		gl.uniformMatrix4fv(sproingieExplodeShaderProgram.mvMatrixUniform, false, mvMatrix);
-    gl.uniform4f(sproingieExplodeShaderProgram.colorUniform, this.m_R, this.m_G, this.m_B, 1.0);
+        this.m_R, this.m_G, this.m_B, 1.0);
+		//gl.uniformMatrix4fv(sproingieExplodeShaderProgram.mvMatrixUniform, false, mvMatrix);
+    //gl.uniform4f(sproingieExplodeShaderProgram.colorUniform, this.m_R, this.m_G, this.m_B, 1.0);
     //gl.uniform1f(sproingieExplodeShaderProgram.uPointSize, pointSize);
 		
 		//gl.uniform3f(sproingieExplodeShaderProgram.centerPositionUniform, this.m_X, this.m_Y, this.m_Z);
 		//gl.uniform4f(sproingieExplodeShaderProgram.colorUniform, this.m_R, this.m_G, this.m_B);
 		
-		//gl.drawArrays(gl.TRIANGLES, 0, pointLifetimesBuffer.numItems);
 		gl.drawArrays(gl.TRIANGLES, 0, sproingieExplodeBuffers.numItems);
 };
 
@@ -2094,57 +2109,59 @@ function SetMaxSproingies(max) {
       groundBuffers.numIndices = indices.length;
   }
 
-  function initBuffers() {
-      groundBuffers = {};
-      groundBuffers.VertexPosition = gl.createBuffer();
-      groundBuffers.VertexNormal = gl.createBuffer();
-      groundBuffers.VertexIndex = gl.createBuffer();
-      
-      computeGround(worldWidth, worldHeight, groundBuffers);
+function initBuffers() {
+		groundBuffers = {};
+		groundBuffers.VertexPosition = gl.createBuffer();
+		groundBuffers.VertexNormal = gl.createBuffer();
+		groundBuffers.VertexIndex = gl.createBuffer();
+		
+		computeGround(worldWidth, worldHeight, groundBuffers);
 
-      sproingieBuffers = {};
-      sproingieBuffers.VertexPosition = gl.createBuffer();
-      sproingieBuffers.VertexNormal = gl.createBuffer();
-      sproingieBuffers.VertexIndex = gl.createBuffer();
-      sproingieBuffers.UVCoords = gl.createBuffer();
-      SproingieTriangleStrip(sproingieBuffers);
+		sproingieBuffers = {};
+		sproingieBuffers.VertexPosition = gl.createBuffer();
+		sproingieBuffers.VertexNormal = gl.createBuffer();
+		sproingieBuffers.VertexIndex = gl.createBuffer();
+		sproingieBuffers.UVCoords = gl.createBuffer();
+		SproingieTriangleStrip(sproingieBuffers);
 
-	  	  //macbooks
+	  // Macbooks
 	  macbookBuffers = {};
-      macbookBuffers.VertexNormalBuffer = gl.createBuffer();
-      macbookBuffers.VertexTextureCoordBuffer = gl.createBuffer();
-      macbookBuffers.VertexPositionBuffer = gl.createBuffer();
-      macbookBuffers.VertexIndexBuffer = gl.createBuffer();
+    macbookBuffers.VertexNormalBuffer = gl.createBuffer();
+    macbookBuffers.VertexTextureCoordBuffer = gl.createBuffer();
+    macbookBuffers.VertexPositionBuffer = gl.createBuffer();
+    macbookBuffers.VertexIndexBuffer = gl.createBuffer();
 	  macbookBuffers.VertexColorBuffer = gl.createBuffer();
 	  initmacbookBuffers(macbookBuffers);
 	  
-	  //Teapots
+	  // Teapots
 	  teapotBuffers = {};
-      teapotBuffers.VertexNormalBuffer = gl.createBuffer();
-      teapotBuffers.VertexTextureCoordBuffer = gl.createBuffer();
-      teapotBuffers.VertexPositionBuffer = gl.createBuffer();
-      teapotBuffers.VertexIndexBuffer = gl.createBuffer();
+    teapotBuffers.VertexNormalBuffer = gl.createBuffer();
+    teapotBuffers.VertexTextureCoordBuffer = gl.createBuffer();
+    teapotBuffers.VertexPositionBuffer = gl.createBuffer();
+    teapotBuffers.VertexIndexBuffer = gl.createBuffer();
 	  teapotBuffers.VertexColorBuffer = gl.createBuffer();
 	  initTeapotBuffers(teapotBuffers);
 	  
-      sproingieBoomBuffers = {};
-      sproingieBoomBuffers.VertexPosition = gl.createBuffer();
+		// Booms
+		sproingieBoomBuffers = {};
+		sproingieBoomBuffers.VertexPosition = gl.createBuffer();
 
-      gl.bindBuffer(gl.ARRAY_BUFFER, sproingieBoomBuffers.VertexPosition);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(s1_b_PNTS), gl.STATIC_DRAW);
-      sproingieBoomBuffers.itemSize = 3;
-      sproingieBoomBuffers.numItems = s1_b_PNTS.length / sproingieBoomBuffers.itemSize;
-			
-			sproingieExplodeBuffers = {};
-      sproingieExplodeBuffers.VertexPosition = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, sproingieBoomBuffers.VertexPosition);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(s1_b_PNTS), gl.STATIC_DRAW);
+		sproingieBoomBuffers.itemSize = 3;
+		sproingieBoomBuffers.numItems = s1_b_PNTS.length / sproingieBoomBuffers.itemSize;
 
-      gl.bindBuffer(gl.ARRAY_BUFFER, sproingieExplodeBuffers.VertexPosition);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(s1_b_PNTS), gl.STATIC_DRAW);
-      sproingieExplodeBuffers.itemSize = 3;
-      sproingieExplodeBuffers.numItems = s1_b_PNTS.length / sproingieExplodeBuffers.itemSize;
+		// Explosions
+		sproingieExplodeBuffers = {};
+		sproingieExplodeBuffers.VertexPosition = gl.createBuffer();
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, sproingieExplodeBuffers.VertexPosition);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(s1_b_PNTS), gl.STATIC_DRAW);
+		sproingieExplodeBuffers.itemSize = 3;
+		sproingieExplodeBuffers.numItems = s1_b_PNTS.length / sproingieExplodeBuffers.itemSize;
 			
-			// Explosions
-			var numParticles = 3000;
+		// Explosions
+		var numParticles = 3000;
 
     lifetimes = [];
     startPositions = [];
@@ -2269,6 +2286,7 @@ function SetMaxSproingies(max) {
 		buffers.VertexColorBuffer.itemSize = 4;
 		buffers.VertexColorBuffer.numItems = 1;
   }
+	
   function initTeapotBuffers(buffers)
   {
 		var teapotData = eval(teapotJSON);
@@ -2406,7 +2424,7 @@ function SetMaxSproingies(max) {
     for (t = 0; t < numSproingies; ++t) {
         if ((sproingieList[t].m_life > 0.000001) &&
             (sproingieList[t].m_stage >= (BOOM_STAGE - 0.001))) {
-            //sproingieList[t].RenderSproingieBoom(sproingieBuffers, mvMatrix, dist);
+            sproingieList[t].RenderSproingieBoom(sproingieBuffers, mvMatrix, dist);
         }
     }
     gl.disable(gl.BLEND);
