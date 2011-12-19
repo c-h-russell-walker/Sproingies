@@ -116,6 +116,7 @@ body {
 <script type="text/javascript" src="js/jquery-ui-1.8.13.custom.min.js"></script>
 <script type="text/javascript" src="js/S1_b.js"></script>
 <script type="text/javascript" src="js/Teapot.js"></script>
+<script type="text/javascript" src="js/macbook.js"></script>
 
 <!--
  ** Sproingie fragment & vertex shaders
@@ -412,6 +413,83 @@ body {
   }
 </script>
 
+<script id="macbook-shader-fs" type="x-shader/x-fragment">
+    #ifdef GL_ES
+    precision highp float;
+    #endif
+
+    varying vec2 vTextureCoord;
+    varying vec3 vTransformedNormal;
+    varying vec4 vPosition;
+
+    uniform float uMaterialShininess;
+
+    uniform bool uShowSpecularHighlights;
+    uniform bool uUseLighting;
+    uniform bool uUseTextures;
+
+    uniform vec3 uAmbientColor;
+
+    uniform vec3 uPointLightingLocation;
+    uniform vec3 uPointLightingSpecularColor;
+    uniform vec3 uPointLightingDiffuseColor;
+
+    uniform sampler2D uSampler;
+
+    void main(void) {        
+        vec3 lightWeighting;
+        if (!uUseLighting) {
+            lightWeighting = vec3(1.0, 1.0, 1.0);
+        } else {
+            vec3 lightDirection = normalize(uPointLightingLocation - vPosition.xyz);
+            vec3 normal = normalize(vTransformedNormal);
+
+            float specularLightWeighting = 0.0;
+            if (uShowSpecularHighlights) {
+                vec3 eyeDirection = normalize(-vPosition.xyz);
+                vec3 reflectionDirection = reflect(-lightDirection, normal);
+
+                specularLightWeighting = pow(max(dot(reflectionDirection, eyeDirection), 0.0), uMaterialShininess);
+            }
+
+            float diffuseLightWeighting = max(dot(normal, lightDirection), 0.0);
+            lightWeighting = uAmbientColor
+                + uPointLightingSpecularColor * specularLightWeighting
+                + uPointLightingDiffuseColor * diffuseLightWeighting;
+        }
+
+        vec4 fragmentColor;
+        if (uUseTextures) {
+            fragmentColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)); 
+        } else {
+            fragmentColor = vec4(0.25, 0.41, 0.88, 1.0);
+        }
+           
+        gl_FragColor = vec4(fragmentColor.rgb * lightWeighting, fragmentColor.a);
+    }
+</script>
+
+<script id="macbook-shader-vs" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+    attribute vec2 aTextureCoord;
+
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+    uniform mat3 uNMatrix;
+    
+    varying vec2 vTextureCoord;
+    varying vec3 vTransformedNormal;
+    varying vec4 vPosition;
+    
+    void main(void) {
+        vPosition = uMVMatrix * vec4(aVertexPosition, 1.0);
+        gl_Position = uPMatrix * vPosition;
+        vTextureCoord = aTextureCoord;
+        vTransformedNormal = uNMatrix * aVertexNormal;
+    }
+</script>
+
 
 <script id="teapot-shader-fs" type="x-shader/x-fragment">
     #ifdef GL_ES
@@ -497,7 +575,8 @@ var TYPE_SLINKY =	0;
 var TYPE_JUMP =		1;
 var TYPE_ROLL =		2;
 var TYPE_TEAPOT =  3;
-var NUM_TYPES =		4;
+var TYPE_macbook =  4;
+var NUM_TYPES =		5;
 
 var DEFAULT_NUM_SPROINGIES = 35;
 var DEFAULT_SPEED          = 18;
@@ -543,11 +622,13 @@ var isPaused = false;
 var groundBuffers;
 var sproingieBuffers;
 var teapotBuffers;
+var macbookBuffers;
 var sproingieBoomBuffers;
 var sproingieExplodeBuffers;
 var groundShaderProgram;
 var sproingieShaderProgram;
 var tpshaderProgram;
+var macbookshaderProgram;
 var sproingieBoomShaderProgram;
 var dotTexture;
 var pointLifetimesBuffer;
@@ -726,6 +807,70 @@ function initShaders(shaderProgram, fsName, vsName) {
     shaderProgram.uMaterialColor = gl.getUniformLocation(shaderProgram, "uMaterialColor");
     shaderProgram.uMaterialSpecular = gl.getUniformLocation(shaderProgram, "uMaterialSpecular");
     shaderProgram.uMaterialAltColor = gl.getUniformLocation(shaderProgram, "uMaterialAltColor");
+}
+
+function initmacbookShaders(shaderProgram, fsName, vsName) {
+     var fragmentShader = getShader(gl, fsName);
+    var vertexShader = getShader(gl, vsName);
+
+     if ((fragmentShader !== null) && (vertexShader !== null)) {
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            alert("Could not initialise shaders");
+        }
+    }
+
+    gl.useProgram(shaderProgram);
+
+    shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+    gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+    
+    shaderProgram.vertexColorAttribute = gl.getAttribLocation(shaderProgram, "aVertexColor");
+    gl.enableVertexAttribArray(shaderProgram.vertexColorAttribute);
+
+    shaderProgram.vertexNormalAttribute = gl.getAttribLocation(shaderProgram, "aVertexNormal");
+    gl.enableVertexAttribArray(shaderProgram.vertexNormalAttribute);
+
+    shaderProgram.textureCoordAttribute = gl.getAttribLocation(shaderProgram, "aTextureCoord");
+    gl.enableVertexAttribArray(shaderProgram.textureCoordAttribute);
+    
+    shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
+    shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+    shaderProgram.nMatrixUniform = gl.getUniformLocation(shaderProgram, "uNMatrix");
+    shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "uSampler");
+    shaderProgram.materialShininessUniform = gl.getUniformLocation(shaderProgram, "uMaterialShininess");
+    shaderProgram.showSpecularHighlightsUniform = gl.getUniformLocation(shaderProgram, "uShowSpecularHighlights");
+    shaderProgram.useTexturesUniform = gl.getUniformLocation(shaderProgram, "uUseTextures");
+    shaderProgram.useLightingUniform = gl.getUniformLocation(shaderProgram, "uUseLighting");
+    shaderProgram.ambientColorUniform = gl.getUniformLocation(shaderProgram, "uAmbientColor");
+    shaderProgram.pointLightingLocationUniform = gl.getUniformLocation(shaderProgram, "uPointLightingLocation");
+    shaderProgram.pointLightingSpecularColorUniform = gl.getUniformLocation(shaderProgram, "uPointLightingSpecularColor");
+    shaderProgram.pointLightingDiffuseColorUniform = gl.getUniformLocation(shaderProgram, "uPointLightingDiffuseColor");
+}
+
+function handlemacbookLoadedTexture(texture) {
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_NEAREST);
+    gl.generateMipmap(gl.TEXTURE_2D);
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
+}
+
+
+function initmacbookTextures() {
+    
+    galvanizedTexture = gl.createTexture();
+    galvanizedTexture.image = new Image();
+    galvanizedTexture.image.onload = function () {
+	handlemacbookLoadedTexture(galvanizedTexture)
+    }
+    galvanizedTexture.image.src = "images/arroway.de_metal+structure+06_d100_flat.jpg";
 }
 
 function initTeapotShaders(shaderProgram, fsName, vsName) {
@@ -964,6 +1109,45 @@ function MakeNormal(v1, v2, normals) {
 				 (v2[2] * v1[0]) - (v1[2] * v2[0]),
 				 (v2[0] * v1[1]) - (v1[0] * v2[1]));
 }
+
+function drawmacbook(shaderProgram, sproingieMatrix) {
+
+    mat4.translate(sproingieMatrix, [0, 0.35, 0]);
+    mat4.scale(sproingieMatrix, [1, 1, 1]);
+
+    gl.uniform1i(shaderProgram.showSpecularHighlightsUniform, true);
+
+    gl.uniform1i(shaderProgram.useLightingUniform, true);
+    gl.uniform3f(shaderProgram.ambientColorUniform, 0.5, 0.5, 0.5);
+    gl.uniform3f(shaderProgram.pointLightingLocationUniform, -.1, .04, -.020);
+    gl.uniform3f(shaderProgram.pointLightingSpecularColorUniform,3,3,3);
+    gl.uniform3f(shaderProgram.pointLightingDiffuseColorUniform,0.8,0.8,0.8);
+    gl.uniform1i(shaderProgram.useTexturesUniform, true);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, galvanizedTexture);
+        
+    gl.uniform1i(shaderProgram.samplerUniform, 0);
+
+    gl.uniform1f(shaderProgram.materialShininessUniform, 32.0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, macbookBuffers.VertexPositionBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, macbookBuffers.VertexPositionBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, macbookBuffers.VertexTextureCoordBuffer);
+    gl.vertexAttribPointer(shaderProgram.textureCoordAttribute, macbookBuffers.VertexTextureCoordBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, macbookBuffers.VertexNormalBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, macbookBuffers.VertexNormalBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, macbookBuffers.VertexColorBuffer);
+    gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, macbookBuffers.VertexColorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, macbookBuffers.VertexIndexBuffer);
+    setMatrixUniforms(shaderProgram, sproingieMatrix);
+    gl.drawElements(gl.TRIANGLES, macbookBuffers.VertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
+ 
+}
+
 
 function drawTeapot(shaderProgram, sproingieMatrix) {
 
@@ -1264,6 +1448,16 @@ Sproingie.prototype.ParametricSproingie = function( sproingie, sprType, fstage, 
 	var fMoveZ;
 	
 	if (this.m_type == TYPE_TEAPOT)
+	{
+		fMoveX = (fstage > 2.0) ? ((Math.cos((fstage-2.0)*Math.PI*0.25)*-0.5+0.5)*fstage/6.0):0.0;
+		fMoveY = (fstage>2.0)?((fstage<4.0)?(0.25+0.25*Math.cos((fstage-4.0)*Math.PI*0.5)):(0.5-0.1325*((fstage-4.0)*(fstage-4.0)))):0.0;
+		fRotateZ = (fstage>1)?(Math.cos((fstage-1)*Math.PI/5.0)*-90.0+90.0):0.0;
+		mat4.translate(sproingieMatrix, [fMoveX + 0.5, fMoveY, -0.5]);
+		mat4.rotate(sproingieMatrix, fRotateZ * DegToRad, [0.0, 0.0, -1.0]);
+		return;
+	}
+	
+	if (this.m_type == TYPE_macbook)
 	{
 		fMoveX = (fstage > 2.0) ? ((Math.cos((fstage-2.0)*Math.PI*0.25)*-0.5+0.5)*fstage/6.0):0.0;
 		fMoveY = (fstage>2.0)?((fstage<4.0)?(0.25+0.25*Math.cos((fstage-4.0)*Math.PI*0.5)):(0.5-0.1325*((fstage-4.0)*(fstage-4.0)))):0.0;
@@ -1600,6 +1794,11 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
 		drawTeapot(tpshaderProgram, sproingieMatrix)
 		return;
 	}
+	if (this.m_type == TYPE_macbook)
+	{
+		drawmacbook(macbookshaderProgram, sproingieMatrix)
+		return;
+	}
 	
     gl.bindBuffer(gl.ARRAY_BUFFER, sproingieBuffers.VertexPosition);
     gl.vertexAttribPointer(sproingieShaderProgram.vertexPositionAttribute,
@@ -1910,6 +2109,14 @@ function SetMaxSproingies(max) {
       sproingieBuffers.UVCoords = gl.createBuffer();
       SproingieTriangleStrip(sproingieBuffers);
 
+	  	  //macbooks
+	  macbookBuffers = {};
+      macbookBuffers.VertexNormalBuffer = gl.createBuffer();
+      macbookBuffers.VertexTextureCoordBuffer = gl.createBuffer();
+      macbookBuffers.VertexPositionBuffer = gl.createBuffer();
+      macbookBuffers.VertexIndexBuffer = gl.createBuffer();
+	  macbookBuffers.VertexColorBuffer = gl.createBuffer();
+	  initmacbookBuffers(macbookBuffers);
 	  
 	  //Teapots
 	  teapotBuffers = {};
@@ -2029,6 +2236,39 @@ function SetMaxSproingies(max) {
     pointTextureCoordsBuffer.numItems = numParticles * 6;
   }
 
+  function initmacbookBuffers(buffers)
+  {
+		var macbookData = eval(macbookJSON);
+		buffers.VertexNormalBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, buffers.VertexNormalBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(macbookData.vertexNormals), gl.STATIC_DRAW);
+		buffers.VertexNormalBuffer.itemSize = 3;
+		buffers.VertexNormalBuffer.numItems = macbookData.vertexNormals.length / 3;
+		
+		buffers.VertexTextureCoordBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, buffers.VertexTextureCoordBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(macbookData.vertexTextureCoords), gl.STATIC_DRAW);
+		buffers.VertexTextureCoordBuffer.itemSize = 2;
+		buffers.VertexTextureCoordBuffer.numItems = macbookData.vertexTextureCoords.length / 2;
+		
+		buffers.VertexPositionBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, buffers.VertexPositionBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(macbookData.vertexPositions), gl.STATIC_DRAW);
+		buffers.VertexPositionBuffer.itemSize = 3;
+		buffers.VertexPositionBuffer.numItems = macbookData.vertexPositions.length / 3;
+		
+		buffers.VertexIndexBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.VertexIndexBuffer);
+		gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(macbookData.indices), gl.STATIC_DRAW);
+		buffers.VertexIndexBuffer.itemSize = 1;
+		buffers.VertexIndexBuffer.numItems = macbookData.indices.length;
+		
+		buffers.VertexColorBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, buffers.VertexColorBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([1.0,0.0,1.0,1.0]), gl.STATIC_DRAW);
+		buffers.VertexColorBuffer.itemSize = 4;
+		buffers.VertexColorBuffer.numItems = 1;
+  }
   function initTeapotBuffers(buffers)
   {
 		var teapotData = eval(teapotJSON);
@@ -2127,17 +2367,24 @@ function SetMaxSproingies(max) {
         if ((sproingieList[t].m_life > 0.0) &&
             (sproingieList[t].m_stage < (BOOM_STAGE - 0.001))) {
 			{
-				if (sproingieList[t].m_type != TYPE_TEAPOT)
+				
+				if (sproingieList[t].m_type == TYPE_macbook)
 				{
-					gl.useProgram(sproingieShaderProgram);
-					setLights(sproingieShaderProgram, worldMatrix);
-					setProjectionUniforms(sproingieShaderProgram, pMatrix, groundPos);
+					gl.useProgram(macbookshaderProgram);
+					setLights(macbookshaderProgram, worldMatrix);
+					setProjectionUniforms(macbookshaderProgram, pMatrix, groundPos);
 				}
-				else
+				else if (sproingieList[t].m_type == TYPE_TEAPOT)
 				{
 					gl.useProgram(tpshaderProgram);
 					setLights(tpshaderProgram, worldMatrix);
 					setProjectionUniforms(tpshaderProgram, pMatrix, groundPos);
+				}
+				else 
+				{
+					gl.useProgram(sproingieShaderProgram);
+					setLights(sproingieShaderProgram, worldMatrix);
+					setProjectionUniforms(sproingieShaderProgram, pMatrix, groundPos);
 				}
             sproingieList[t].RenderSproingie(sproingieBuffers, mvMatrix);
 			
@@ -2459,6 +2706,11 @@ function SetMaxSproingies(max) {
     initExplodeShaders(sproingieExplodeShaderProgram, "shader-fs-explode", "shader-vs-explode");
 		tpshaderProgram = gl.createProgram();
 		initTeapotShaders(tpshaderProgram, "teapot-shader-fs", "teapot-shader-vs");
+
+		tpshaderProgram = gl.createProgram();
+		initTeapotShaders(tpshaderProgram, "teapot-shader-fs", "teapot-shader-vs");
+		macbookshaderProgram = gl.createProgram();
+		initmacbookShaders(macbookshaderProgram, "macbook-shader-fs", "macbook-shader-vs");
 
     initBuffers();
     initTextures();
@@ -2800,7 +3052,15 @@ function SetMaxSproingies(max) {
       // Make an FPS display
       $(".ui-dialog:has(#settingsDialog) .ui-dialog-buttonpane").prepend('<div class="showFPS"><\/div>');
   });
+  var background = new Audio("Audio/onBackground.mid");
+  var winlevel = new Audio("Audio/onWinlevel.mp3");
+  var rewardcapture = new Audio("Audio/onRewardcapture.mp3");
+  var gameover= new Audio("Audio/onGameover.mp3");
+  var jump = new Audio("Audio/onJump.mp3");
+  var loselife = new Audio("Audio/onLoselife.mp3");
+  var reward = new Audio("Audio/onReward.mp3");
   
+	background.play();
 </script>
 
 <!-- This section is Google tracking stuff, nothing WebGL related here...  -->
