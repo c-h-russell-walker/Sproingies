@@ -259,10 +259,7 @@ body {
  ** Dying Sproingie explosion(2) fragment & vertex shaders
  -->
 <script id="shader-fs-explode" type="x-shader/x-fragment">
-  #ifdef GL_ES
-  precision highp float;
-  #endif
-	//precision mediump float;
+	precision mediump float;
 
   uniform vec4 uColor;
 
@@ -300,16 +297,16 @@ body {
 
 
   void main(void) {
-    //if (uTime <= aLifetime) {
-      /*gl_Position.xyz = aStartPosition + (uTime * aEndPosition);
-      gl_Position.xyz += uCenterPosition;
-      gl_Position.w = 1.0;*/
-			gl_Position = uProjMatrix * uMVMatrix * vec4(aStartPosition, 1.0);
-			//gl_Position = vec4(aVertexPosition, 1.0);
-    /*} else {
-      gl_Position = vec4(-1000, -1000, 0, 0);
-    }*/
-		//gl_PointSize = uPointSize;
+    if (uTime <= aLifetime) {
+				/*gl_Position.xyz = aStartPosition + (uTime * aEndPosition);
+				gl_Position.xyz += uCenterPosition;
+				gl_Position.w = 1.0;*/
+				aVertexPosition = aStartPosition + (uTime * aEndPosition);
+				gl_Position = uProjMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+    } else {
+				gl_Position = uProjMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+				//gl_Position = vec4(-1000, -1000, 0, 0);
+    }
 
     vLifetime = 1.0 - (uTime / aLifetime);
     vLifetime = clamp(vLifetime, 0.0, 1.0);
@@ -649,10 +646,10 @@ var pointEndPositionsBuffer;
 var pointOffsetsBuffer;
 var pointTextureCoordsBuffer;
 
+var color = [Math.random() / 2 + 0.5, Math.random() / 2 + 0.5, Math.random() / 2 + 0.5, 0.5];
 var colorTime=0;
 var groundRGB = [ 0.156863, 0.156863, 0.392157 ];
 var nextGroundRGB = [ 0.156863, 0.156863, 0.392157 ];
-
 
 var worldWidth=8;
 var worldHeight=2;
@@ -997,8 +994,8 @@ function initExplodeShaders(shaderProgram, fsName, vsName) {
 
     gl.useProgram(shaderProgram);
 		
-		shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
-    gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+		/*shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+    gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);*/
 
     shaderProgram.pointLifetimeAttribute = gl.getAttribLocation(shaderProgram, "aLifetime");
     gl.enableVertexAttribArray(shaderProgram.pointLifetimeAttribute);
@@ -1097,7 +1094,7 @@ function setBoomUniforms(shaderProgram, mvMatrix, r, g, b, pointSize) {
 function setExplodeUniforms(shaderProgram, mvMatrix, r, g, b, pointSize) {
 		gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
 		gl.uniform4f(shaderProgram.colorUniform, r, g, b, 1.0);
-		gl.uniform1f(shaderProgram.uPointSize, pointSize);
+		//gl.uniform1f(shaderProgram.uPointSize, pointSize);
 		//gl.uniform3f(sproingieExplodeShaderProgram.centerPositionUniform, this.m_X, this.m_Y, this.m_Z);
 }
 
@@ -1881,27 +1878,30 @@ Sproingie.prototype.RenderSproingieExplode = function(sproingieBuffers, mvMatrix
     var sproingieExplodeMatrix = mat4.create(mvMatrix);
 
     mat4.translate(sproingieExplodeMatrix, [this.m_X + 0.5, this.m_Y + 0.5, this.m_Z - 0.5]);
-
-    gl.bindBuffer(gl.ARRAY_BUFFER, sproingieExplodeBuffers.VertexPosition);	
-    //gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointLifetimeAttribute,
-			//										 sproingieExplodeBuffers.itemSize, gl.FLOAT, false, 0, 0);
-
-/*    gl.bindBuffer(gl.ARRAY_BUFFER, pointStartPositionsBuffer);
-    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointStartPositionAttribute, pointStartPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
-*/	/*
+/*
+		gl.bindBuffer(gl.ARRAY_BUFFER, pointStartPositionsBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointStartPositionAttribute,
+												   pointStartPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		
     gl.bindBuffer(gl.ARRAY_BUFFER, pointEndPositionsBuffer);
-    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointEndPositionAttribute, pointEndPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
-		*/
-    /*gl.bindBuffer(gl.ARRAY_BUFFER, pointOffsetsBuffer);
-    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointOffsetAttribute, pointOffsetsBuffer.itemSize, gl.FLOAT, false, 0, 0);
-		*/
-    //gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointTextureCoordsAttribute, pointTextureCoordsBuffer.itemSize, gl.FLOAT, false, 0, 0);
-
-		gl.vertexAttribPointer(sproingieExplodeBuffers.vertexPositionAttribute,
-        sproingieExplodeBuffers.itemSize, gl.FLOAT, false, 0, 0);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointEndPositionAttribute,
+												   pointEndPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointOffsetsBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointOffsetAttribute,
+												   pointOffsetsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		
+		gl.bindBuffer(gl.ARRAY_BUFFER, pointTextureCoordsBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointTextureCoordsAttribute,
+												   pointTextureCoordsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+*/
+		gl.bindBuffer(gl.ARRAY_BUFFER, sproingieExplodeBuffers.VertexPosition);	
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.vertexPositionAttribute,
+													 sproingieExplodeBuffers.itemSize, gl.FLOAT, false, 0, 0);
 
     setExplodeUniforms(sproingieExplodeShaderProgram, sproingieExplodeMatrix,
-        this.m_R, this.m_G, this.m_B, 1.0);
+        color[0], color[1], color[2], 1.0);
+		
 		//gl.uniformMatrix4fv(sproingieExplodeShaderProgram.mvMatrixUniform, false, mvMatrix);
     //gl.uniform4f(sproingieExplodeShaderProgram.colorUniform, this.m_R, this.m_G, this.m_B, 1.0);
     //gl.uniform1f(sproingieExplodeShaderProgram.uPointSize, pointSize);
@@ -2436,7 +2436,7 @@ function initBuffers() {
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
 		
 		gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.bindTexture(gl.TEXTURE_2D, explodeTexture);
     gl.uniform1i(sproingieExplodeShaderProgram.samplerUniform, 0);
 		
 		// Need to have event when level is won to know to 'kill' all sproingies - except for hero
@@ -2446,10 +2446,10 @@ function initBuffers() {
 		gl.disable(gl.BLEND);
 }
 
-  function handleLoadedTexture(texture) {
+  function handleExplodeTexture(explodeTexture) {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+    gl.bindTexture(gl.TEXTURE_2D, explodeTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, explodeTexture.image);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 
@@ -2457,15 +2457,15 @@ function initBuffers() {
   }
 
 
-  var texture;
-  function initTexture() {
-    texture = gl.createTexture();
-    texture.image = new Image();
-    texture.image.onload = function() {
-      handleLoadedTexture(texture)
+  var explodeTexture;
+  function initExplodeTexture() {
+    explodeTexture = gl.createTexture();
+    explodeTexture.image = new Image();
+    explodeTexture.image.onload = function() {
+      handleExplodeTexture(explodeTexture)
     }
 
-    texture.image.src = "images/smoke.gif";
+    explodeTexture.image.src = "images/smoke.gif";
   }
 
   function nextSproingie(timePassed) {
@@ -2520,15 +2520,17 @@ function initBuffers() {
       /* Otherwise just hang loose for a while here */
   }
 
+  var explodeTime = 1.0;
   function animate() {
     var timeNow = new Date().getTime();
     if (lastTime !== 0) {
         keyPos = [0.0, 0.0, -4.0];
-      lightRot += lightRotSpeed;
+				lightRot += lightRotSpeed;
     
         var timePassed = (timeNow - lastTime) * 0.001;
         fpsTime += timePassed;
         fpsFrames++;
+				explodeTime += timePassed / 10000;
 
         if (fpsFrames <= 0) {
             fpsTime = timePassed = 0;
@@ -2537,7 +2539,12 @@ function initBuffers() {
             $(".showFPS").html(fps.toFixed(2) + " fps");
             fpsFrames = fpsTime = 0;
         }
-
+				
+				// Explosions
+				if (explodeTime >= 1.0) {
+						explodeTime = 0;
+						color = [Math.random() / 2 + 0.5, Math.random() / 2 + 0.5, Math.random() / 2 + 0.5, 0.5];
+				}
 		
         if (timePassed > 1.0e-5) {
 		
@@ -2692,7 +2699,7 @@ function initBuffers() {
 				break;
             case 52: //4
 				selectedCam = 3;
-				break;			
+				break;
 			
             default:
 				break;
@@ -2706,7 +2713,7 @@ function initBuffers() {
   function webGLStart() {
     var canvas = document.getElementById(glCanvasName);
     initGL(canvas);
-		initTexture();
+		initExplodeTexture();
     if (!gl) { return; }
     window.onresize = resizeGL;
     
