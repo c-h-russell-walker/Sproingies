@@ -296,7 +296,6 @@ body {
   varying vec2 vTextureCoords;
 
   void main(void) {
-		//aVertexPosition = aStartPosition + (uTime * aEndPosition);
     if (uTime <= aLifetime) {
 				/*gl_Position.xyz = aStartPosition + (uTime * aEndPosition);
 				gl_Position.xyz += uCenterPosition;
@@ -307,7 +306,7 @@ body {
 				//gl_Position = vec4(-1000, -1000, 0, 0);
     }
 
-    vLifetime = 1.0 - (uTime / aLifetime);
+    vLifetime = 0.5 - (uTime / aLifetime);
     vLifetime = clamp(vLifetime, 0.0, 1.0);
     float size = (vLifetime * vLifetime) * 0.1;
     gl_Position.xy += aOffset.xy * size;
