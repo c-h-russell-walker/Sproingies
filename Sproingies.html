@@ -62,6 +62,14 @@ body {
     margin-top: 1em;
     font-weight: bold;
 }
+#ui {
+    display: block;
+    position: fixed;
+    top: 10%;
+	right: 100px;
+    text-align: center;
+	background-color: #A6C9E2;	
+}
 #toolbar {
     display: block;
     position: fixed;
@@ -170,9 +178,7 @@ body {
     vec4 diffuse  = vec4(0.0);
     vec4 specular = vec4(0.0);
 
- // pointLight(n, vViewPos.xyz, 50.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
     pointLight(n, vViewPos.xyz, 1000.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
- // pointLight(n, vViewPos.xyz, 0.0, diffuse, specular, uKeyLightColor, uKeyLightPos);
    
     pointLight(n, vViewPos.xyz, 50.0, diffuse, specular, uFillLightColor, uFillLightPos);
 
@@ -254,6 +260,69 @@ body {
   }
 </script>
 
+<!--
+ ** Dying Sproingie explosion(2) fragment & vertex shaders
+ -->
+<script id="shader-fs-explode" type="x-shader/x-fragment">
+  #ifdef GL_ES
+  precision highp float;
+  #endif
+	//precision mediump float;
+
+  uniform vec4 uColor;
+
+  varying float vLifetime;
+  varying vec2 vTextureCoords;
+
+  uniform sampler2D sTexture;
+
+  void main(void) {
+    vec4 texColor;
+    texColor = texture2D(sTexture, vTextureCoords);
+    gl_FragColor = vec4(uColor) * texColor;
+    gl_FragColor.a *= vLifetime;
+  }
+</script>
+
+<script id="shader-vs-explode" type="x-shader/x-vertex">
+  uniform float uTime;
+  uniform vec3 uCenterPosition;
+	
+	uniform mat4 uMVMatrix;
+  uniform mat4 uProjMatrix;
+	//uniform float uPointsize;
+
+  attribute float aLifetime;
+  attribute vec3 aStartPosition;
+  attribute vec3 aEndPosition;
+  attribute vec2 aOffset;
+  attribute vec2 aTextureCoords;
+	
+	attribute vec3 aVertexPosition;
+
+  varying float vLifetime;
+  varying vec2 vTextureCoords;
+
+
+  void main(void) {
+    //if (uTime <= aLifetime) {
+      /*gl_Position.xyz = aStartPosition + (uTime * aEndPosition);
+      gl_Position.xyz += uCenterPosition;
+      gl_Position.w = 1.0;*/
+			gl_Position = uProjMatrix * uMVMatrix * vec4(aStartPosition, 1.0);
+			//gl_Position = vec4(aVertexPosition, 1.0);
+    /*} else {
+      gl_Position = vec4(-1000, -1000, 0, 0);
+    }*/
+		//gl_PointSize = uPointSize;
+
+    vLifetime = 1.0 - (uTime / aLifetime);
+    vLifetime = clamp(vLifetime, 0.0, 1.0);
+    float size = (vLifetime * vLifetime) * 0.1;
+    //gl_Position.xy += aOffset.xy * size;
+    vTextureCoords = aTextureCoords;
+  }
+</script>
 
 <!--
  ** Ground fragment & vertex shaders
@@ -526,8 +595,8 @@ var TYPE_TEAPOT =  3;
 var TYPE_macbook =  4;
 var NUM_TYPES =		5;
 
-var DEFAULT_NUM_SPROINGIES = 35;
-var DEFAULT_SPEED          = 18;
+var DEFAULT_NUM_SPROINGIES = 20;
+var DEFAULT_SPEED          = 10;
 var DEFAULT_GROUND         =  2;
 var DEFAULT_WEIRDNESS      =  4;
 var DEFAULT_TYPE           =  TYPE_SLINKY;
@@ -556,6 +625,8 @@ var howfast = DEFAULT_SPEED;
 var groundlevel = DEFAULT_GROUND;
 var weirdness = DEFAULT_WEIRDNESS;
 
+var KILL_ALL=false;
+
 var gl;  // the WebGL context
 var glCanvasName = "glCanvas";
 
@@ -573,6 +644,7 @@ var teapotBuffers;
 var macbookBuffers;
 var sproingieBoomBuffers;
 var groundShaderProgram;
+var sproingieExplodeBuffers;
 var sproingieShaderProgram;
 var tpshaderProgram;
 var macbookshaderProgram;
@@ -585,9 +657,15 @@ var nextGroundRGB = [ 0.156863, 0.156863, 0.392157 ];
 
 
 var worldWidth=8;
-var worldHeight=2;
+var worldHeight=4;
 
 var BOXINESS = 0;
+
+var gameLevel = 1;
+var	totalScore = 0;
+var playerLives;
+var	levelScore;
+var playAgain;
 
 var SPECULAR = 0.5;
 
@@ -914,6 +992,48 @@ function initBoomShaders(shaderProgram, fsName, vsName) {
     shaderProgram.uDotSampler = gl.getUniformLocation(shaderProgram, "uDotSampler");
 }
 
+function initExplodeShaders(shaderProgram, fsName, vsName) {
+    var fragmentShader = getShader(gl, fsName);
+    var vertexShader = getShader(gl, vsName);
+
+    gl.attachShader(shaderProgram, vertexShader);
+    gl.attachShader(shaderProgram, fragmentShader);
+    gl.linkProgram(shaderProgram);
+
+    if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+      alert("Could not initialise shaders");
+    }
+
+    gl.useProgram(shaderProgram);
+		
+		shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+    gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+
+    shaderProgram.pointLifetimeAttribute = gl.getAttribLocation(shaderProgram, "aLifetime");
+    gl.enableVertexAttribArray(shaderProgram.pointLifetimeAttribute);
+
+    shaderProgram.pointStartPositionAttribute = gl.getAttribLocation(shaderProgram, "aStartPosition");
+    gl.enableVertexAttribArray(shaderProgram.pointStartPositionAttribute);
+
+    shaderProgram.pointEndPositionAttribute = gl.getAttribLocation(shaderProgram, "aEndPosition");
+    gl.enableVertexAttribArray(shaderProgram.pointEndPositionAttribute);
+
+    shaderProgram.pointOffsetAttribute = gl.getAttribLocation(shaderProgram, "aOffset");
+    gl.enableVertexAttribArray(shaderProgram.pointOffsetAttribute);
+
+    shaderProgram.pointTextureCoordsAttribute = gl.getAttribLocation(shaderProgram, "aTextureCoords");
+    gl.enableVertexAttribArray(shaderProgram.pointTextureCoordsAttribute);
+
+    shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "sTexture");
+    shaderProgram.centerPositionUniform = gl.getUniformLocation(shaderProgram, "uCenterPosition");
+    shaderProgram.colorUniform = gl.getUniformLocation(shaderProgram, "uColor");
+    shaderProgram.timeUniform = gl.getUniformLocation(shaderProgram, "uTime");
+		
+		shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uProjMatrix");
+    shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+    //shaderProgram.uPointSize = gl.getUniformLocation(shaderProgram, "uPointSize");
+}
+
 //
 // Textures
 //
@@ -981,6 +1101,13 @@ function setBoomUniforms(shaderProgram, mvMatrix, r, g, b, pointSize) {
     gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
     gl.uniform4f(shaderProgram.uColor, r, g, b, 1.0);
     gl.uniform1f(shaderProgram.uPointSize, pointSize);
+}
+
+function setExplodeUniforms(shaderProgram, mvMatrix, r, g, b, pointSize) {
+		gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
+		gl.uniform4f(shaderProgram.colorUniform, r, g, b, 1.0);
+		gl.uniform1f(shaderProgram.uPointSize, pointSize);
+		//gl.uniform3f(sproingieExplodeShaderProgram.centerPositionUniform, this.m_X, this.m_Y, this.m_Z);
 }
 
 //
@@ -1122,14 +1249,18 @@ Sproingie.prototype.CheckCollision = function(maxStage) {
 	var len = sproingieList.length;
     var t2;
 	
-	if (this.m_index == 0) //Don't do collision detection for our main sproingie
-		return false;
+		
 		
     for (t2 = 1; t2 < len; ++t2) {
         if ((t2 !== this.m_index) && (this.m_X === sproingieList[t2].m_X) &&
             (this.m_Y === sproingieList[t2].m_Y) && (this.m_Z === sproingieList[t2].m_Z) &&
             (sproingieList[t2].m_life > 10.0) && (sproingieList[t2].m_stage < maxStage)) {
 			
+			if (sproingieList[t2].m_index==0)
+			{
+				playerDeath();
+				return true;
+			}
 			if (!sproingieList[t2].m_merge && !this.m_merge)
 			{
 				sproingieList[t2].m_weirdBits = 2;
@@ -1168,6 +1299,14 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
 				if ((this.m_R += 0.5) > 1.0) { this.m_R = 1.0; }
                 if ((this.m_G += 0.5) > 1.0) { this.m_G = 1.0; }
                 if ((this.m_B += 0.5) > 1.0) { this.m_B = 1.0; }
+				
+				if (this.m_index == 0)
+				{
+					if (this.m_Y > 0)
+						levelWon();
+					else
+						playerDeath();
+				}
 			}
 
         if ((this.m_stage += nextStage) >= 12.0) {
@@ -1675,7 +1814,7 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
 			fstage = this.m_stage;
 		else
 			fstage = 0;
-	}
+	}	
 	else if (this.m_stage >= 6.0) {
 		mat4.translate(sproingieMatrix, [this.m_X + 1, this.m_Y - 1, this.m_Z - 1]);
 		mat4.rotate(sproingieMatrix, -90.0 * DegToRad, [0.0, 1.0, 0.0]);
@@ -1691,6 +1830,9 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
 	
 	if (this.m_type == TYPE_TEAPOT)
 	{
+	
+		//mat4.translate(sproingieMatrix, [2, 1, -3]);
+	
 		drawTeapot(tpshaderProgram, sproingieMatrix)
 		return;
 	}
@@ -1754,6 +1896,41 @@ Sproingie.prototype.RenderSproingieBoom = function(sproingieBuffers, mvMatrix, d
         this.m_R, this.m_G, this.m_B, pointsize);
         
     gl.drawArrays(gl.POINTS, 0, sproingieBoomBuffers.numItems);
+};
+
+Sproingie.prototype.RenderSproingieExplode = function(sproingieBuffers, mvMatrix, dist) {
+    var sproingieExplodeMatrix = mat4.create(mvMatrix);
+
+    mat4.translate(sproingieExplodeMatrix, [this.m_X + 0.5, this.m_Y + 0.5, this.m_Z - 0.5]);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, sproingieExplodeBuffers.VertexPosition);	
+    //gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointLifetimeAttribute,
+			//										 sproingieExplodeBuffers.itemSize, gl.FLOAT, false, 0, 0);
+
+/*    gl.bindBuffer(gl.ARRAY_BUFFER, pointStartPositionsBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointStartPositionAttribute, pointStartPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+*/	/*
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointEndPositionsBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointEndPositionAttribute, pointEndPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		*/
+    /*gl.bindBuffer(gl.ARRAY_BUFFER, pointOffsetsBuffer);
+    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointOffsetAttribute, pointOffsetsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+		*/
+    //gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointTextureCoordsAttribute, pointTextureCoordsBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+		gl.vertexAttribPointer(sproingieExplodeBuffers.vertexPositionAttribute,
+        sproingieExplodeBuffers.itemSize, gl.FLOAT, false, 0, 0);
+
+    setExplodeUniforms(sproingieExplodeShaderProgram, sproingieExplodeMatrix,
+        this.m_R, this.m_G, this.m_B, 1.0);
+		//gl.uniformMatrix4fv(sproingieExplodeShaderProgram.mvMatrixUniform, false, mvMatrix);
+    //gl.uniform4f(sproingieExplodeShaderProgram.colorUniform, this.m_R, this.m_G, this.m_B, 1.0);
+    //gl.uniform1f(sproingieExplodeShaderProgram.uPointSize, pointSize);
+		
+		//gl.uniform3f(sproingieExplodeShaderProgram.centerPositionUniform, this.m_X, this.m_Y, this.m_Z);
+		//gl.uniform4f(sproingieExplodeShaderProgram.colorUniform, this.m_R, this.m_G, this.m_B);
+		
+		gl.drawArrays(gl.TRIANGLES, 0, sproingieExplodeBuffers.numItems);
 };
 
 function SproingieTriangleStrip(sproingieBuffers) {
@@ -1982,6 +2159,7 @@ function SetMaxSproingies(max) {
 	  teapotBuffers.VertexColorBuffer = gl.createBuffer();
 	  initTeapotBuffers(teapotBuffers);
 	  
+		// Booms
       sproingieBoomBuffers = {};
       sproingieBoomBuffers.VertexPosition = gl.createBuffer();
 
@@ -1989,6 +2167,107 @@ function SetMaxSproingies(max) {
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(s1_b_PNTS), gl.STATIC_DRAW);
       sproingieBoomBuffers.itemSize = 3;
       sproingieBoomBuffers.numItems = s1_b_PNTS.length / sproingieBoomBuffers.itemSize;
+
+		// Explosions
+		sproingieExplodeBuffers = {};
+		sproingieExplodeBuffers.VertexPosition = gl.createBuffer();
+
+		gl.bindBuffer(gl.ARRAY_BUFFER, sproingieExplodeBuffers.VertexPosition);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(s1_b_PNTS), gl.STATIC_DRAW);
+		sproingieExplodeBuffers.itemSize = 3;
+		sproingieExplodeBuffers.numItems = s1_b_PNTS.length / sproingieExplodeBuffers.itemSize;
+			
+		// Explosions
+		var numParticles = 3000;
+
+    lifetimes = [];
+    startPositions = [];
+    endPositions = [];
+    offsets = [];
+    textureCoords = [];
+    offsetsCycle = [
+      -1,  1,
+      -1, -1,
+       1,  1,
+       1, -1,
+      -1, -1,
+       1,  1,
+    ];
+    textureCoordsCycle = [
+      0, 1,
+      0, 0,
+      1, 1,
+      1, 0,
+      0, 0,
+      1, 1,
+    ];
+    for (var i=0; i < numParticles; i++)  {
+      var lifetime = (Math.random() * 0.75) + 0.25;
+
+      var distance = Math.random() * 0.1 - 0.05;
+      var theta = Math.random() * 2 * Math.PI;
+      var phi =  Math.random() * 2 * Math.PI;
+
+      var startX = distance * Math.cos(phi) * Math.sin(theta);
+      var startY = distance * Math.cos(theta);
+      var startZ = distance * Math.sin(phi) * Math.sin(theta);
+
+      var distance = Math.random() * 3 - 1;
+      var theta = Math.random() * 2 * Math.PI;
+      var phi =  Math.random() * 2 * Math.PI;
+
+      var endX = distance * Math.cos(phi) * Math.sin(theta);
+      var endY = distance * Math.cos(theta);
+      var endZ = distance * Math.sin(phi) * Math.sin(theta);
+
+      for (var v=0; v < 6; v++) {
+        lifetimes.push(lifetime);
+
+        startPositions.push(startX);
+        startPositions.push(startY);
+        startPositions.push(startZ);
+
+        endPositions.push(endX);
+        endPositions.push(endY);
+        endPositions.push(endZ);
+
+        offsets.push(offsetsCycle[v * 2]);
+        offsets.push(offsetsCycle[v * 2 + 1]);
+
+        textureCoords.push(textureCoordsCycle[v * 2]);
+        textureCoords.push(textureCoordsCycle[v * 2 + 1]);
+      }
+    }
+
+    pointLifetimesBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointLifetimesBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(lifetimes), gl.STATIC_DRAW);
+    pointLifetimesBuffer.itemSize = 1;
+    pointLifetimesBuffer.numItems = numParticles * 6;
+
+    pointStartPositionsBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointStartPositionsBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(startPositions), gl.STATIC_DRAW);
+    pointStartPositionsBuffer.itemSize = 3;
+    pointStartPositionsBuffer.numItems = numParticles * 6;
+
+    pointEndPositionsBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointEndPositionsBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(endPositions), gl.STATIC_DRAW);
+    pointEndPositionsBuffer.itemSize = 3;
+    pointEndPositionsBuffer.numItems = numParticles * 6;
+
+    pointOffsetsBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointOffsetsBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(offsets), gl.STATIC_DRAW);
+    pointOffsetsBuffer.itemSize = 2;
+    pointOffsetsBuffer.numItems = numParticles * 6;
+
+    pointTextureCoordsBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, pointTextureCoordsBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(textureCoords), gl.STATIC_DRAW);
+    pointTextureCoordsBuffer.itemSize = 2;
+    pointTextureCoordsBuffer.numItems = numParticles * 6;
   }
 
   function initmacbookBuffers(buffers)
@@ -2062,6 +2341,10 @@ function SetMaxSproingies(max) {
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 	
+	$("#levelNum").html(gameLevel);
+	  $("#scoreNum").html(totalScore);
+	  $('#levelScoreNum').html(levelScore);
+	  $('#livesNum').html(playerLives);
 	
     var pMatrix = mat4.create();
 	var fov = 88.0;
@@ -2167,10 +2450,75 @@ function SetMaxSproingies(max) {
         }
     }
     gl.disable(gl.BLEND);
+	
+		//
+		// Render the explosions
+		// If level is won explode all the bad guys with this new explosion
+		//
+		if (KILL_ALL)
+		{
+			gl.useProgram(sproingieExplodeShaderProgram);
+			setProjectionUniforms(sproingieExplodeShaderProgram, pMatrix, groundPos);
+
+			gl.enable(gl.BLEND);
+			gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+				
+			gl.activeTexture(gl.TEXTURE0);
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+			gl.uniform1i(sproingieExplodeShaderProgram.samplerUniform, 0);
+			
+			// Need to have event when level is won to know to 'kill' all sproingies - except for hero
+			for (t = 1; t < numSproingies; ++t) {
+			sproingieList[t].RenderSproingieExplode(sproingieBuffers, mvMatrix, dist);
+			}
+			gl.disable(gl.BLEND);
+			KILL_ALL=false;
+		}
 }
 
+var heroAnimStage = 0;
+function animateHero(hero, sproingieMatrix) {
+    heroAnimStage++;
+	
+    var rotAngle = Math.cos(heroAnimStage*Math.PI/90)*360.0
+    var fRotateZ = rotAngle+360.0;
+    
+    
+    if(heroAnimStage < 45){
+	mat4.rotate(sproingieMatrix, fRotateZ * DegToRad,[0.1, 0.1, .2]);
+    }
+    else if(heroAnimStage < 90){
+	mat4.translate(sproingieMatrix, [0.5, 0, -0.5]);
+	mat4.rotate(sproingieMatrix, heroAnimStage * 10 * DegToRad,[0, 1, 0]);
+	mat4.translate(sproingieMatrix, [-0.5, 0, 0.5]);
+	mat4.rotate(sproingieMatrix, rotAngle * 2 * DegToRad,[0, 0, 1]);
+    }
+}
+
+  function handleLoadedTexture(texture) {
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+
+    gl.bindTexture(gl.TEXTURE_2D, null);
+  }
+
+
+  var texture;
+  function initTexture() {
+    texture = gl.createTexture();
+    texture.image = new Image();
+    texture.image.onload = function() {
+      handleLoadedTexture(texture)
+    }
+
+    texture.image.src = "images/smoke.gif";
+  }
+
   function nextSproingie(timePassed) {
-      var nextStage = timePassed * howfast * 0.333333333;
+      var nextStage = timePassed * howfast * 0.333333333 + gameLevel/30;
       var numSproingies = sproingieList.length;
       var t;
 
@@ -2219,6 +2567,45 @@ function SetMaxSproingies(max) {
           }
       }
       /* Otherwise just hang loose for a while here */
+  }
+  function setLevel (time){
+	if (timePassed > time)
+		gameLevel ++;
+  }
+ 
+  function newGame(){
+	playerLives = 3;
+	totalScore = 0;
+	gameLevel = 1;
+	levelScore = 10000 * gameLevel/2;
+  }
+  
+  function levelWon(){
+	gameLevel ++;
+	totalScore = levelScore + totalScore;
+	levelScore = 10000 * gameLevel/2;	
+	SetMaxSproingies(DEFAULT_NUM_SPROINGIES+gameLevel*2);
+	worldWidth--;
+	if (gameLevel % 3 == 0)
+		computeGround(worldWidth, worldHeight, groundBuffers);
+	
+	//Animate hero
+	
+	
+	//Kill all other sproingies.
+	KILL_ALL=true;
+  }
+  
+  function playerDeath(){
+	playerLives --;
+	if (playerLives == 0)
+		gameOver();
+  }
+  
+  function gameOver(){
+	alert("Game Over");
+	if (playAgain == true)
+		newGame();
   }
 
   function animate() {
@@ -2408,6 +2795,7 @@ function SetMaxSproingies(max) {
   function webGLStart() {
     var canvas = document.getElementById(glCanvasName);
     initGL(canvas);
+		initTexture();
     if (!gl) { return; }
     window.onresize = resizeGL;
     
@@ -2417,6 +2805,10 @@ function SetMaxSproingies(max) {
     initShaders(sproingieShaderProgram, "shader-fs-sproingie", "shader-vs-sproingie");
     sproingieBoomShaderProgram = gl.createProgram();
     initBoomShaders(sproingieBoomShaderProgram, "shader-fs-boom", "shader-vs-boom");
+	
+	sproingieExplodeShaderProgram = gl.createProgram();
+    initExplodeShaders(sproingieExplodeShaderProgram, "shader-fs-explode", "shader-vs-explode");
+	
 	tpshaderProgram = gl.createProgram();
 	initTeapotShaders(tpshaderProgram, "teapot-shader-fs", "teapot-shader-vs");
 		macbookshaderProgram = gl.createProgram();
@@ -2526,6 +2918,8 @@ function SetMaxSproingies(max) {
   }
 
   function startup() {
+		//start a new game.
+		newGame();
       if (document.URL.indexOf("inspect=1") > 1) {
           window.afterInspectorLoad = webGLStart;
           insertInspector();
@@ -2639,7 +3033,7 @@ function SetMaxSproingies(max) {
           value: worldWidth,
           animate: true,
           orientation: "vertical",
-          slide: function(event, ui) { worldWidth = ui.value; $("#worldWidthNum").html(worldWidth); computeGround(worldWidth, 16, groundBuffers); return true; }
+          slide: function(event, ui) { worldWidth = ui.value; $("#worldWidthNum").html(worldWidth); computeGround(worldWidth, worldHeight, groundBuffers); return true; }
       });
       $("#howManySlider").slider({
           min: 1,
@@ -2667,6 +3061,7 @@ function SetMaxSproingies(max) {
           slide: function(event, ui) { weirdness = ui.value; $("#howFunkyNum").html(weirdness); return true; }
       });
 	  $("#shapeNum").html(BOXINESS);
+	  
       $("#shapeSlider").slider({
           min: 0,
           max: 2,
@@ -2806,7 +3201,24 @@ function SetMaxSproingies(max) {
         <input type="checkbox" id="showInspector" /><label for="showInspector">inspector</label>
         <button id="showSettings">settings</button>
     </div>
-    
+	<div id="ui">
+		 <div id="result">
+			<p>SCORE</p>
+			<p id="scoreNum">&nbsp;</p>
+		</div>   
+	   <div id="level">
+			<p>LEVEL</p>
+			<p id="levelNum">&nbsp;</p>
+		</div> 
+		<div id="lives">
+			<p>LIVES</p>
+			<p id="livesNum">&nbsp;</p>
+		</div>
+		<div id="levelScore">
+			<p>Level Score</p>
+			<p id="levelScoreNum">&nbsp;</p>
+		</div> 	
+	</div>
     <div id="settingsDialog" title="Sproingies settings">
         <div id="settingsSliders">
             <div class="sliderBox ui-widget ui-corner-all">
@@ -2843,11 +3255,6 @@ function SetMaxSproingies(max) {
                 <p>Sproingie<br />Shineness</p>
                 <span id="sproingieShineSlider"></span>
                 <p id="sproingieShineNum">&nbsp;</p>
-            </div>
-			<div class="sliderBox ui-widget ui-corner-all">
-                <p>Zoom<br />Level</p>
-                <span id="zoomLevelSlider"></span>
-                <p id="zoomLevel">&nbsp;</p>
             </div>
         </div>
     </div>
