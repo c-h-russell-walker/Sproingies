@@ -1218,7 +1218,6 @@ function drawTeapot(shaderProgram, sproingieMatrix) {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, teapotBuffers.VertexIndexBuffer);
     setMatrixUniforms(shaderProgram, sproingieMatrix);
     gl.drawElements(gl.TRIANGLES, teapotBuffers.VertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0);
- 
 }
 
 //
@@ -2423,54 +2422,53 @@ function initBuffers() {
     //
     var numSproingies = sproingieList.length;
     var t;
-
-    for (t = 0; t < numSproingies; ++t) {
-        if ((sproingieList[t].m_life > 0.0) &&
-            (sproingieList[t].m_stage < (BOOM_STAGE - 0.001))) {
-			{
-				
-				if (sproingieList[t].m_type == TYPE_macbook)
-				{
-					gl.useProgram(macbookshaderProgram);
-					setLights(macbookshaderProgram, worldMatrix);
-					setProjectionUniforms(macbookshaderProgram, pMatrix, groundPos);
+		if (!KILL_ALL) {
+				for (t = 0; t < numSproingies; ++t) {
+						if ((sproingieList[t].m_life > 0.0) &&
+								(sproingieList[t].m_stage < (BOOM_STAGE - 0.001))) {
+								if (sproingieList[t].m_type == TYPE_macbook)
+								{
+									gl.useProgram(macbookshaderProgram);
+									setLights(macbookshaderProgram, worldMatrix);
+									setProjectionUniforms(macbookshaderProgram, pMatrix, groundPos);
+								}
+								else if (sproingieList[t].m_type == TYPE_TEAPOT)
+								{
+									gl.useProgram(tpshaderProgram);
+									setLights(tpshaderProgram, worldMatrix);
+									setProjectionUniforms(tpshaderProgram, pMatrix, groundPos);
+								}
+								else 
+								{
+									gl.useProgram(sproingieShaderProgram);
+									setLights(sproingieShaderProgram, worldMatrix);
+									setProjectionUniforms(sproingieShaderProgram, pMatrix, groundPos);
+								}
+										sproingieList[t].RenderSproingie(sproingieBuffers, mvMatrix);
+						}
 				}
-				else if (sproingieList[t].m_type == TYPE_TEAPOT)
-				{
-					gl.useProgram(tpshaderProgram);
-					setLights(tpshaderProgram, worldMatrix);
-					setProjectionUniforms(tpshaderProgram, pMatrix, groundPos);
-				}
-				else 
-				{
-					gl.useProgram(sproingieShaderProgram);
-					setLights(sproingieShaderProgram, worldMatrix);
-					setProjectionUniforms(sproingieShaderProgram, pMatrix, groundPos);
-				}
-            sproingieList[t].RenderSproingie(sproingieBuffers, mvMatrix);
-			
-			}
-        }
-    }
+		}
     
     //
     // Render the booms (original)
     //
-    gl.useProgram(sproingieBoomShaderProgram);
-    setProjectionUniforms(sproingieBoomShaderProgram, pMatrix, groundPos);
-
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, dotTexture);
-    gl.uniform1i(sproingieBoomShaderProgram.uDotSampler, 0);
-    
-    gl.enable(gl.BLEND);
-    for (t = 0; t < numSproingies; ++t) {
-        if ((sproingieList[t].m_life > 0.000001) &&
-            (sproingieList[t].m_stage >= (BOOM_STAGE - 0.001))) {
-            sproingieList[t].RenderSproingieBoom(sproingieBuffers, mvMatrix, dist);
-        }
-    }
-    gl.disable(gl.BLEND);
+		if (!KILL_ALL) {
+				gl.useProgram(sproingieBoomShaderProgram);
+				setProjectionUniforms(sproingieBoomShaderProgram, pMatrix, groundPos);
+		
+				gl.activeTexture(gl.TEXTURE0);
+				gl.bindTexture(gl.TEXTURE_2D, dotTexture);
+				gl.uniform1i(sproingieBoomShaderProgram.uDotSampler, 0);
+				
+				gl.enable(gl.BLEND);
+				for (t = 0; t < numSproingies; ++t) {
+						if ((sproingieList[t].m_life > 0.000001) &&
+								(sproingieList[t].m_stage >= (BOOM_STAGE - 0.001))) {
+								sproingieList[t].RenderSproingieBoom(sproingieBuffers, mvMatrix, dist);
+						}
+				}
+				gl.disable(gl.BLEND);
+		}
 
 		//
 		// Render the explosions
@@ -2486,10 +2484,15 @@ function initBuffers() {
 		gl.bindTexture(gl.TEXTURE_2D, explodeTexture);
 		gl.uniform1i(sproingieExplodeShaderProgram.samplerUniform, 0);
 		
-		if (KILL_ALL) { // Hero has index zero
+		if (KILL_ALL) {
+		  // Hero has index zero
 			for (t = 1; t < numSproingies; ++t) {
 				sproingieList[t].RenderSproingieExplode(sproingieBuffers, mvMatrix, dist, KILL_ALL);
+				// Send the sproingies back to 'start'
+				sproingieList[t].ResetSproingie();
 			}
+			console.log(sproingieList);
+			animateHero(sproingieList[0], mvMatrix);
 			KILL_ALL=false;
 		} else {
 				sproingieList[0].RenderSproingieExplode(sproingieBuffers, mvMatrix, dist, KILL_ALL);
@@ -2500,19 +2503,19 @@ function initBuffers() {
 var heroAnimStage = 0;
 function animateHero(hero, sproingieMatrix) {
     heroAnimStage++;
-	
+		
     var rotAngle = Math.cos(heroAnimStage*Math.PI/90)*360.0
     var fRotateZ = rotAngle+360.0;
     
     
     if(heroAnimStage < 45){
-	mat4.rotate(sproingieMatrix, fRotateZ * DegToRad,[0.1, 0.1, .2]);
+				mat4.rotate(sproingieMatrix, fRotateZ * DegToRad,[0.1, 0.1, .2]);
     }
     else if(heroAnimStage < 90){
-	mat4.translate(sproingieMatrix, [0.5, 0, -0.5]);
-	mat4.rotate(sproingieMatrix, heroAnimStage * 10 * DegToRad,[0, 1, 0]);
-	mat4.translate(sproingieMatrix, [-0.5, 0, 0.5]);
-	mat4.rotate(sproingieMatrix, rotAngle * 2 * DegToRad,[0, 0, 1]);
+				mat4.translate(sproingieMatrix, [0.5, 0, -0.5]);
+				mat4.rotate(sproingieMatrix, heroAnimStage * 10 * DegToRad,[0, 1, 0]);
+				mat4.translate(sproingieMatrix, [-0.5, 0, 0.5]);
+				mat4.rotate(sproingieMatrix, rotAngle * 2 * DegToRad,[0, 0, 1]);
     }
 }
 
@@ -2609,11 +2612,10 @@ function animateHero(hero, sproingieMatrix) {
 	if (gameLevel % 3 == 0)
 		computeGround(worldWidth, worldHeight, groundBuffers);
 	
-	//Animate hero
-	
-	
 	//Kill all other sproingies.
 	KILL_ALL=true;
+	
+	alert('Level Won!');
   }
   
   function playerDeath(){
@@ -2715,7 +2717,7 @@ function animateHero(hero, sproingieMatrix) {
 
   function tick() {
     requestAnimFrame(tick);
-    drawScene();
+		drawScene();
     animate();
   }
 
