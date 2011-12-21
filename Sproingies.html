@@ -2590,7 +2590,7 @@ function animateHero(hero, sproingieMatrix) {
 	//Kill all other sproingies.
 	KILL_ALL=true;
 	
-	alert('Level Won!');
+	alert('Level '+ gameLevel + ' Won!');
   }
   
   function playerDeath(){
@@ -2598,14 +2598,14 @@ function animateHero(hero, sproingieMatrix) {
 	var mvMatrix = mat4.create();
   mat4.identity(mvMatrix);
 	sproingieList[0].RenderSproingieBoom(sproingieBuffers, mvMatrix, dist);
-	sproingieList[0].ResetSproingie();
-	if (playerLives == 0)
+	if (playerLives <= 0)
 		gameOver();
   }
   
   function gameOver(){
-	alert("Game Over");
+	var playAgain = confirm("Game Over - Play Again?");
 	if (playAgain == true)
+		sproingieList[0].ResetSproingie();
 		newGame();
   }
 
