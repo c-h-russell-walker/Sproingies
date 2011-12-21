@@ -65,6 +65,14 @@ body {
     margin-top: 1em;
     font-weight: bold;
 }
+#ui {
+    display: block;
+    position: fixed;
+    top: 10%;
+	right: 100px;
+    text-align: center;
+	background-color: #A6C9E2;	
+}
 #toolbar {
     display: block;
     position: fixed;
@@ -259,7 +267,7 @@ body {
  ** Dying Sproingie explosion(2) fragment & vertex shaders
  -->
 <script id="shader-fs-explode" type="x-shader/x-fragment">
-	precision mediump float;
+  precision mediump float;
 
   uniform vec4 uColor;
 
@@ -296,6 +304,7 @@ body {
   varying vec2 vTextureCoords;
 
   void main(void) {
+    //aVertexPosition = aStartPosition + (uTime * aEndPosition);
     if (uTime <= aLifetime) {
 				/*gl_Position.xyz = aStartPosition + (uTime * aEndPosition);
 				gl_Position.xyz += uCenterPosition;
@@ -306,7 +315,7 @@ body {
 				//gl_Position = vec4(-1000, -1000, 0, 0);
     }
 
-    vLifetime = 0.5 - (uTime / aLifetime);
+    vLifetime = 1.0 - (uTime / aLifetime);
     vLifetime = clamp(vLifetime, 0.0, 1.0);
     float size = (vLifetime * vLifetime) * 0.1;
     gl_Position.xy += aOffset.xy * size;
@@ -585,11 +594,14 @@ var TYPE_TEAPOT =  3;
 var TYPE_macbook =  4;
 var NUM_TYPES =		5;
 
-var DEFAULT_NUM_SPROINGIES = 35;
-var DEFAULT_SPEED          = 18;
+var DEFAULT_NUM_SPROINGIES = 20;
+var DEFAULT_SPEED          = 10;
 var DEFAULT_GROUND         =  2;
 var DEFAULT_WEIRDNESS      =  4;
 var DEFAULT_TYPE           =  TYPE_SLINKY;
+
+var HERO_SPEED_JUMPING =	4;
+var HERO_SPEED_NOT_JUMPING =	2;
 
 var CAMERA_SLIDE_RATE = 0.998;
 var BOOM_STAGE = 50.0;
@@ -615,6 +627,8 @@ var howfast = DEFAULT_SPEED;
 var groundlevel = DEFAULT_GROUND;
 var weirdness = DEFAULT_WEIRDNESS;
 
+var KILL_ALL=false;
+
 var gl;  // the WebGL context
 var glCanvasName = "glCanvas";
 
@@ -637,6 +651,7 @@ var sproingieShaderProgram;
 var tpshaderProgram;
 var macbookshaderProgram;
 var sproingieBoomShaderProgram;
+var sproingieExplodeShaderProgram;
 var dotTexture;
 var pointLifetimesBuffer;
 var pointStartPositionsBuffer;
@@ -650,9 +665,15 @@ var groundRGB = [ 0.156863, 0.156863, 0.392157 ];
 var nextGroundRGB = [ 0.156863, 0.156863, 0.392157 ];
 
 var worldWidth=8;
-var worldHeight=2;
+var worldHeight=4;
 
 var BOXINESS = 0;
+
+var gameLevel = 1;
+var	totalScore = 0;
+var playerLives;
+var	levelScore;
+var playAgain;
 
 var SPECULAR = 0.5;
 
@@ -771,7 +792,7 @@ function initShaders(shaderProgram, fsName, vsName) {
         gl.linkProgram(shaderProgram);
 
         if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-            alert("Could not initialise shaders");
+						alert("Could not initialise shaders");
         }
     }
 
@@ -826,7 +847,7 @@ function initmacbookShaders(shaderProgram, fsName, vsName) {
         gl.linkProgram(shaderProgram);
 
         if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-            alert("Could not initialise shaders");
+            alert("Could not initialise macbook shaders");
         }
     }
 
@@ -889,7 +910,7 @@ function initTeapotShaders(shaderProgram, fsName, vsName) {
         gl.linkProgram(shaderProgram);
 
         if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-            alert("Could not initialise shaders");
+            alert("Could not initialise teapot shaders");
         }
     }
 
@@ -953,7 +974,7 @@ function initBoomShaders(shaderProgram, fsName, vsName) {
         gl.linkProgram(shaderProgram);
 
         if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-            alert("Could not initialise shaders");
+            alert("Could not initialise boom shaders");
         }
     }
 
@@ -987,7 +1008,7 @@ function initExplodeShaders(shaderProgram, fsName, vsName) {
     gl.linkProgram(shaderProgram);
 
     if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
-      alert("Could not initialise shaders");
+      alert("Could not initialise explosion shaders");
     }
 
     gl.useProgram(shaderProgram);
@@ -1092,7 +1113,7 @@ function setBoomUniforms(shaderProgram, mvMatrix, r, g, b, pointSize) {
 function setExplodeUniforms(shaderProgram, mvMatrix, r, g, b, pointSize) {
 		gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
 		gl.uniform4f(shaderProgram.colorUniform, r, g, b, 1.0);
-		//gl.uniform1f(shaderProgram.uPointSize, pointSize);
+		gl.uniform1f(shaderProgram.uPointSize, pointSize);
 		//gl.uniform3f(sproingieExplodeShaderProgram.centerPositionUniform, this.m_X, this.m_Y, this.m_Z);
 }
 
@@ -1235,14 +1256,18 @@ Sproingie.prototype.CheckCollision = function(maxStage) {
 	var len = sproingieList.length;
     var t2;
 	
-	if (this.m_index == 0) //Don't do collision detection for our main sproingie
-		return false;
+		
 		
     for (t2 = 1; t2 < len; ++t2) {
         if ((t2 !== this.m_index) && (this.m_X === sproingieList[t2].m_X) &&
             (this.m_Y === sproingieList[t2].m_Y) && (this.m_Z === sproingieList[t2].m_Z) &&
             (sproingieList[t2].m_life > 10.0) && (sproingieList[t2].m_stage < maxStage)) {
 			
+			if (sproingieList[t2].m_index==0)
+			{
+				playerDeath();
+				return true;
+			}
 			if (!sproingieList[t2].m_merge && !this.m_merge)
 			{
 				sproingieList[t2].m_weirdBits = 2;
@@ -1281,6 +1306,14 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
 				if ((this.m_R += 0.5) > 1.0) { this.m_R = 1.0; }
                 if ((this.m_G += 0.5) > 1.0) { this.m_G = 1.0; }
                 if ((this.m_B += 0.5) > 1.0) { this.m_B = 1.0; }
+				
+				if (this.m_index == 0)
+				{
+					if (this.m_Y > 0)
+						levelWon();
+					else
+						playerDeath();
+				}
 			}
 
         if ((this.m_stage += nextStage) >= 12.0) {
@@ -1392,7 +1425,8 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
         this.m_B = (40 + myrand(200)) / 255.0;
 		
 	if ( this.m_index == 0 )
-	{	this.m_speed = 4;
+	{
+		this.m_speed = HERO_SPEED_NOT_JUMPING;
 		this.m_R = 1;
 		this.m_G = 1;
 		this.m_B = 1;
@@ -1425,6 +1459,7 @@ Sproingie.prototype.AdvanceSproingie = function(nextStage) {
     {	if ( this.m_jumping )
 	{	if ( this.m_stage > 6 )
 		{	this.m_jumping = false;
+		  this.m_speed = HERO_SPEED_NOT_JUMPING;
 		
 			if ( this.m_jumpUp )
 			{	if ( this.m_flipJump )
@@ -1548,7 +1583,13 @@ Sproingie.prototype.ParametricSproingie = function( sproingie, sprType, fstage, 
 		}
 		else
 			fMoveY = 0;
-	}
+		}
+		if ( sproingie.m_index == 0 && !sproingie.m_jumping )
+			{	fMoveX = 0.5;
+				fBendAngle = 0;
+				if ( fMoveY < 0 )
+					fMoveY = 0;
+			}
 	}
 	else if ( sprType == TYPE_ROLL )
 	{
@@ -1807,6 +1848,9 @@ Sproingie.prototype.RenderSproingie = function(sproingieBuffers, mvMatrix) {
 	
 	if (this.m_type == TYPE_TEAPOT)
 	{
+	
+		//mat4.translate(sproingieMatrix, [2, 1, -3]);
+	
 		drawTeapot(tpshaderProgram, sproingieMatrix)
 		return;
 	}
@@ -1872,7 +1916,7 @@ Sproingie.prototype.RenderSproingieBoom = function(sproingieBuffers, mvMatrix, d
     gl.drawArrays(gl.POINTS, 0, sproingieBoomBuffers.numItems);
 };
 
-Sproingie.prototype.RenderSproingieExplode = function(sproingieBuffers, mvMatrix, dist) {
+Sproingie.prototype.RenderSproingieExplode = function(sproingieBuffers, mvMatrix, dist, render) {
     var sproingieExplodeMatrix = mat4.create(mvMatrix);
 
     mat4.translate(sproingieExplodeMatrix, [this.m_X + 0.5, this.m_Y + 0.5, this.m_Z - 0.5]);
@@ -1899,15 +1943,16 @@ Sproingie.prototype.RenderSproingieExplode = function(sproingieBuffers, mvMatrix
 
     setExplodeUniforms(sproingieExplodeShaderProgram, sproingieExplodeMatrix,
         color[0], color[1], color[2], 1.0);
-		
+
 		//gl.uniformMatrix4fv(sproingieExplodeShaderProgram.mvMatrixUniform, false, mvMatrix);
     //gl.uniform4f(sproingieExplodeShaderProgram.colorUniform, this.m_R, this.m_G, this.m_B, 1.0);
     //gl.uniform1f(sproingieExplodeShaderProgram.uPointSize, pointSize);
-		
+
 		//gl.uniform3f(sproingieExplodeShaderProgram.centerPositionUniform, this.m_X, this.m_Y, this.m_Z);
 		//gl.uniform4f(sproingieExplodeShaderProgram.colorUniform, this.m_R, this.m_G, this.m_B);
-		
-		gl.drawArrays(gl.TRIANGLES, 0, sproingieExplodeBuffers.numItems);
+
+		if (render)
+				gl.drawArrays(gl.TRIANGLES, 0, sproingieExplodeBuffers.numItems);
 };
 
 function SproingieTriangleStrip(sproingieBuffers) {
@@ -2137,13 +2182,13 @@ function initBuffers() {
 	  initTeapotBuffers(teapotBuffers);
 	  
 		// Booms
-		sproingieBoomBuffers = {};
-		sproingieBoomBuffers.VertexPosition = gl.createBuffer();
+    sproingieBoomBuffers = {};
+    sproingieBoomBuffers.VertexPosition = gl.createBuffer();
 
-		gl.bindBuffer(gl.ARRAY_BUFFER, sproingieBoomBuffers.VertexPosition);
-		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(s1_b_PNTS), gl.STATIC_DRAW);
-		sproingieBoomBuffers.itemSize = 3;
-		sproingieBoomBuffers.numItems = s1_b_PNTS.length / sproingieBoomBuffers.itemSize;
+    gl.bindBuffer(gl.ARRAY_BUFFER, sproingieBoomBuffers.VertexPosition);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(s1_b_PNTS), gl.STATIC_DRAW);
+    sproingieBoomBuffers.itemSize = 3;
+    sproingieBoomBuffers.numItems = s1_b_PNTS.length / sproingieBoomBuffers.itemSize;
 
 		// Explosions
 		sproingieExplodeBuffers = {};
@@ -2319,6 +2364,10 @@ function initBuffers() {
     gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 	
+	$("#levelNum").html(gameLevel);
+	  $("#scoreNum").html(totalScore);
+	  $('#levelScoreNum').html(levelScore);
+	  $('#livesNum').html(playerLives);
 	
     var pMatrix = mat4.create();
 		var fov = 88.0;
@@ -2422,26 +2471,49 @@ function initBuffers() {
         }
     }
     gl.disable(gl.BLEND);
-		
+
 		//
 		// Render the explosions
 		// If level is won explode all the bad guys with this new explosion
 		//
 		gl.useProgram(sproingieExplodeShaderProgram);
-    setProjectionUniforms(sproingieExplodeShaderProgram, pMatrix, groundPos);
+		setProjectionUniforms(sproingieExplodeShaderProgram, pMatrix, groundPos);
 
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-		
+		gl.enable(gl.BLEND);
+		gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+			
 		gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, explodeTexture);
-    gl.uniform1i(sproingieExplodeShaderProgram.samplerUniform, 0);
+		gl.bindTexture(gl.TEXTURE_2D, explodeTexture);
+		gl.uniform1i(sproingieExplodeShaderProgram.samplerUniform, 0);
 		
-		// Need to have event when level is won to know to 'kill' all sproingies - except for hero
-		for (t = 0; t < numSproingies; ++t) {
-        sproingieList[t].RenderSproingieExplode(sproingieBuffers, mvMatrix, dist);
-    }
+		if (KILL_ALL) { // Hero has index zero
+			for (t = 1; t < numSproingies; ++t) {
+				sproingieList[t].RenderSproingieExplode(sproingieBuffers, mvMatrix, dist, KILL_ALL);
+			}
+			KILL_ALL=false;
+		} else {
+				sproingieList[0].RenderSproingieExplode(sproingieBuffers, mvMatrix, dist, KILL_ALL);
+		}
 		gl.disable(gl.BLEND);
+}
+
+var heroAnimStage = 0;
+function animateHero(hero, sproingieMatrix) {
+    heroAnimStage++;
+	
+    var rotAngle = Math.cos(heroAnimStage*Math.PI/90)*360.0
+    var fRotateZ = rotAngle+360.0;
+    
+    
+    if(heroAnimStage < 45){
+	mat4.rotate(sproingieMatrix, fRotateZ * DegToRad,[0.1, 0.1, .2]);
+    }
+    else if(heroAnimStage < 90){
+	mat4.translate(sproingieMatrix, [0.5, 0, -0.5]);
+	mat4.rotate(sproingieMatrix, heroAnimStage * 10 * DegToRad,[0, 1, 0]);
+	mat4.translate(sproingieMatrix, [-0.5, 0, 0.5]);
+	mat4.rotate(sproingieMatrix, rotAngle * 2 * DegToRad,[0, 0, 1]);
+    }
 }
 
   function handleExplodeTexture(explodeTexture) {
@@ -2453,7 +2525,6 @@ function initBuffers() {
 
     gl.bindTexture(gl.TEXTURE_2D, null);
   }
-
 
   var explodeTexture;
   function initExplodeTexture() {
@@ -2467,7 +2538,7 @@ function initBuffers() {
   }
 
   function nextSproingie(timePassed) {
-      var nextStage = timePassed * howfast * 0.333333333;
+      var nextStage = timePassed * howfast * 0.333333333 + gameLevel/30;
       var numSproingies = sproingieList.length;
       var t;
 
@@ -2516,6 +2587,45 @@ function initBuffers() {
           }
       }
       /* Otherwise just hang loose for a while here */
+  }
+  function setLevel (time){
+	if (timePassed > time)
+		gameLevel ++;
+  }
+ 
+  function newGame(){
+	playerLives = 3;
+	totalScore = 0;
+	gameLevel = 1;
+	levelScore = 10000 * gameLevel/2;
+  }
+  
+  function levelWon(){
+	gameLevel ++;
+	totalScore = levelScore + totalScore;
+	levelScore = 10000 * gameLevel/2;	
+	SetMaxSproingies(DEFAULT_NUM_SPROINGIES+gameLevel*2);
+	worldWidth--;
+	if (gameLevel % 3 == 0)
+		computeGround(worldWidth, worldHeight, groundBuffers);
+	
+	//Animate hero
+	
+	
+	//Kill all other sproingies.
+	KILL_ALL=true;
+  }
+  
+  function playerDeath(){
+	playerLives --;
+	if (playerLives == 0)
+		gameOver();
+  }
+  
+  function gameOver(){
+	alert("Game Over");
+	if (playAgain == true)
+		newGame();
   }
 
   var explodeTime = 1.0;
@@ -2721,6 +2831,7 @@ function initBuffers() {
     initShaders(sproingieShaderProgram, "shader-fs-sproingie", "shader-vs-sproingie");
     sproingieBoomShaderProgram = gl.createProgram();
     initBoomShaders(sproingieBoomShaderProgram, "shader-fs-boom", "shader-vs-boom");
+
 		sproingieExplodeShaderProgram = gl.createProgram();
     initExplodeShaders(sproingieExplodeShaderProgram, "shader-fs-explode", "shader-vs-explode");
 		tpshaderProgram = gl.createProgram();
@@ -2728,6 +2839,7 @@ function initBuffers() {
 
 		tpshaderProgram = gl.createProgram();
 		initTeapotShaders(tpshaderProgram, "teapot-shader-fs", "teapot-shader-vs");
+
 		macbookshaderProgram = gl.createProgram();
 		initmacbookShaders(macbookshaderProgram, "macbook-shader-fs", "macbook-shader-vs");
 
@@ -2767,6 +2879,7 @@ function initBuffers() {
 		
 	KEYDOWN=false;
   }
+	
   function handleKeyDown(evt)
   {
 	
@@ -2786,24 +2899,20 @@ function initBuffers() {
 			sproingieList[0].m_stage = BOOM_STAGE;
 			return;
 			
-			//up left
-			case 37: // left arrow
-			case 69: // e                
+		//up left
+		case 37: // left arrow
+		case 69: // e                
 		case 100: // numpad left
 		case 103: // numpad 7
-			sproingieList[0].m_jumpUp = true;
-			sproingieList[0].m_flipJump = true;
-			sproingieList[0].m_jumping = true;
-
-                break;   
-			//up right
+			sproingieJump( sproingieList[0], true, true );
+			break;
+			
+		//up right
 		case 38: // up arrow
-			case 82: // r
+		case 82: // r
 		case 104: // numpad up
 		case 105: // numpad 9
-			sproingieList[0].m_jumpUp = true;
-			sproingieList[0].m_flipJump = false;
-			sproingieList[0].m_jumping = true;
+			sproingieJump( sproingieList[0], true, false );
 			break;   
 			
 		// down right
@@ -2811,21 +2920,31 @@ function initBuffers() {
 		case 70: // f
 		case 102: // numpad right
 		case 99: // numpad 3
-			sproingieList[0].m_jumpUp = false;
-			sproingieList[0].m_flipJump = false;
-			sproingieList[0].m_jumping = true;
-                break;   
-			//down left
+			sproingieJump( sproingieList[0], false, false );
+			break;
+			
+		//down left
 		case 40: // down arrow
-			case 68: // d
+		case 68: // d
 		case 98: // numpad down
 		case 97: // numpad 1
-			sproingieList[0].m_jumpUp = false;
-			sproingieList[0].m_flipJump = true;
-			sproingieList[0].m_jumping = true;
-                break;    
+			sproingieJump( sproingieList[0], false, true );
+			break;    
 	}
 	KEYDOWN=true;
+  }
+	
+  function sproingieJump( sproingie, jumpUp, flipJump )
+  {	if ( sproingie.m_jumping )
+  		return false;
+		
+	sproingie.m_jumping = true;
+	sproingie.m_jumpUp = jumpUp;
+	sproingie.m_flipJump = flipJump;
+	sproingie.m_stage = 0;
+	sproingie.m_speed = HERO_SPEED_JUMPING;
+	
+	return true;
   }
   
   function insertInspector() {
@@ -2836,6 +2955,8 @@ function initBuffers() {
   }
 
   function startup() {
+		//start a new game.
+		newGame();
       if (document.URL.indexOf("inspect=1") > 1) {
           window.afterInspectorLoad = webGLStart;
           insertInspector();
@@ -2949,7 +3070,7 @@ function initBuffers() {
           value: worldWidth,
           animate: true,
           orientation: "vertical",
-          slide: function(event, ui) { worldWidth = ui.value; $("#worldWidthNum").html(worldWidth); computeGround(worldWidth, 16, groundBuffers); return true; }
+          slide: function(event, ui) { worldWidth = ui.value; $("#worldWidthNum").html(worldWidth); computeGround(worldWidth, worldHeight, groundBuffers); return true; }
       });
       $("#howManySlider").slider({
           min: 1,
@@ -2977,6 +3098,7 @@ function initBuffers() {
           slide: function(event, ui) { weirdness = ui.value; $("#howFunkyNum").html(weirdness); return true; }
       });
 	  $("#shapeNum").html(BOXINESS);
+	  
       $("#shapeSlider").slider({
           min: 0,
           max: 2,
@@ -3116,7 +3238,24 @@ function initBuffers() {
         <input type="checkbox" id="showInspector" /><label for="showInspector">inspector</label>
         <button id="showSettings">settings</button>
     </div>
-    
+	<div id="ui">
+		 <div id="result">
+			<p>SCORE</p>
+			<p id="scoreNum">&nbsp;</p>
+		</div>   
+	   <div id="level">
+			<p>LEVEL</p>
+			<p id="levelNum">&nbsp;</p>
+		</div> 
+		<div id="lives">
+			<p>LIVES</p>
+			<p id="livesNum">&nbsp;</p>
+		</div>
+		<div id="levelScore">
+			<p>Level Score</p>
+			<p id="levelScoreNum">&nbsp;</p>
+		</div> 	
+	</div>
     <div id="settingsDialog" title="Sproingies settings">
         <div id="settingsSliders">
             <div class="sliderBox ui-widget ui-corner-all">
@@ -3153,11 +3292,6 @@ function initBuffers() {
                 <p>Sproingie<br />Shineness</p>
                 <span id="sproingieShineSlider"></span>
                 <p id="sproingieShineNum">&nbsp;</p>
-            </div>
-			<div class="sliderBox ui-widget ui-corner-all">
-                <p>Zoom<br />Level</p>
-                <span id="zoomLevelSlider"></span>
-                <p id="zoomLevel">&nbsp;</p>
             </div>
         </div>
     </div>
