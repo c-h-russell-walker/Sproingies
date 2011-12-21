@@ -1254,31 +1254,30 @@ Sproingie.prototype.ResetSproingie = function() {
 Sproingie.prototype.CheckCollision = function(maxStage) {    
 	var len = sproingieList.length;
     var t2;
-	
 		
-		
-    for (t2 = 1; t2 < len; ++t2) {
+    for (t2 = 0; t2 < len; ++t2) {
         if ((t2 !== this.m_index) && (this.m_X === sproingieList[t2].m_X) &&
             (this.m_Y === sproingieList[t2].m_Y) && (this.m_Z === sproingieList[t2].m_Z) &&
             (sproingieList[t2].m_life > 10.0) && (sproingieList[t2].m_stage < maxStage)) {
-			
-			if (sproingieList[t2].m_index==0)
-			{
-				playerDeath();
-				return true;
-			}
-			if (!sproingieList[t2].m_merge && !this.m_merge)
-			{
-				sproingieList[t2].m_weirdBits = 2;
-				sproingieList[t2].m_altR = this.m_R;
-				sproingieList[t2].m_altG = this.m_G;
-				sproingieList[t2].m_altB = this.m_B;
-				sproingieList[t2].m_merge = true;
-				sproingieList[t2].m_width=1.75;
-				this.m_life=0;
-				return false;
-			}
-			
+						
+						if (!sproingieList[t2].m_merge && !this.m_merge)
+						{
+							sproingieList[t2].m_weirdBits = 2;
+							sproingieList[t2].m_altR = this.m_R;
+							sproingieList[t2].m_altG = this.m_G;
+							sproingieList[t2].m_altB = this.m_B;
+							sproingieList[t2].m_merge = true;
+							sproingieList[t2].m_width=1.75;
+							this.m_life=0;
+							return false;
+						}
+				// Collision detection for our hero
+				if (sproingieList[t2].m_index==0)
+				{
+						playerDeath();
+						return true;
+				}
+				
             return true;
         }
     }
@@ -1919,36 +1918,13 @@ Sproingie.prototype.RenderSproingieExplode = function(sproingieBuffers, mvMatrix
     var sproingieExplodeMatrix = mat4.create(mvMatrix);
 
     mat4.translate(sproingieExplodeMatrix, [this.m_X + 0.5, this.m_Y + 0.5, this.m_Z - 0.5]);
-/*
-		gl.bindBuffer(gl.ARRAY_BUFFER, pointStartPositionsBuffer);
-    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointStartPositionAttribute,
-												   pointStartPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
-		
-    gl.bindBuffer(gl.ARRAY_BUFFER, pointEndPositionsBuffer);
-    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointEndPositionAttribute,
-												   pointEndPositionsBuffer.itemSize, gl.FLOAT, false, 0, 0);
-		
-    gl.bindBuffer(gl.ARRAY_BUFFER, pointOffsetsBuffer);
-    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointOffsetAttribute,
-												   pointOffsetsBuffer.itemSize, gl.FLOAT, false, 0, 0);
-		
-		gl.bindBuffer(gl.ARRAY_BUFFER, pointTextureCoordsBuffer);
-    gl.vertexAttribPointer(sproingieExplodeShaderProgram.pointTextureCoordsAttribute,
-												   pointTextureCoordsBuffer.itemSize, gl.FLOAT, false, 0, 0);
-*/
+
 		gl.bindBuffer(gl.ARRAY_BUFFER, sproingieExplodeBuffers.VertexPosition);	
     gl.vertexAttribPointer(sproingieExplodeShaderProgram.vertexPositionAttribute,
 													 sproingieExplodeBuffers.itemSize, gl.FLOAT, false, 0, 0);
 
     setExplodeUniforms(sproingieExplodeShaderProgram, sproingieExplodeMatrix,
         color[0], color[1], color[2], 1.0);
-
-		//gl.uniformMatrix4fv(sproingieExplodeShaderProgram.mvMatrixUniform, false, mvMatrix);
-    //gl.uniform4f(sproingieExplodeShaderProgram.colorUniform, this.m_R, this.m_G, this.m_B, 1.0);
-    //gl.uniform1f(sproingieExplodeShaderProgram.uPointSize, pointSize);
-
-		//gl.uniform3f(sproingieExplodeShaderProgram.centerPositionUniform, this.m_X, this.m_Y, this.m_Z);
-		//gl.uniform4f(sproingieExplodeShaderProgram.colorUniform, this.m_R, this.m_G, this.m_B);
 
 		if (render)
 				gl.drawArrays(gl.TRIANGLES, 0, sproingieExplodeBuffers.numItems);
@@ -2491,7 +2467,6 @@ function initBuffers() {
 				// Send the sproingies back to 'start'
 				sproingieList[t].ResetSproingie();
 			}
-			console.log(sproingieList);
 			animateHero(sproingieList[0], mvMatrix);
 			KILL_ALL=false;
 		} else {
@@ -2620,6 +2595,10 @@ function animateHero(hero, sproingieMatrix) {
   
   function playerDeath(){
 	playerLives --;
+	var mvMatrix = mat4.create();
+  mat4.identity(mvMatrix);
+	sproingieList[0].RenderSproingieBoom(sproingieBuffers, mvMatrix, dist);
+	sproingieList[0].ResetSproingie();
 	if (playerLives == 0)
 		gameOver();
   }
