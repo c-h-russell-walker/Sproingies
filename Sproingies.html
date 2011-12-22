@@ -2457,12 +2457,12 @@ function newGame() {
 	gameLevel = 1;
 	levelScore = 10000 * gameLevel / 2;
 	setScore();
-
 }
 
 function setScore() {
 	if (levelScore <= 0) {
 		clearTimeout(LevelTimer);
+		gameOver();
 		return;
 	}
 
