@@ -2313,6 +2313,9 @@ function drawScene() {
 			sproingieList[t].ResetSproingie();
 		}
 		animateHero(sproingieList[0], mvMatrix);
+		playPause();
+		alert('Level ' + gameLevel + ' Won!');
+		setTimeout("playPause()", 500);
 		KILL_ALL = false;
 	} else {
 		sproingieList[0].RenderSproingieExplode(sproingieBuffers, mvMatrix, dist, KILL_ALL);
@@ -2320,62 +2323,22 @@ function drawScene() {
 	gl.disable(gl.BLEND);
 }
 
-function killSproingies() {
-  var pMatrix = mat4.create();
-	var mvMatrix = mat4.create();
-	mat4.identity(mvMatrix);
-	
-	var worldMatrix = mat4.create(mvMatrix);
-
-	var groundPos = [ground * (-1.0 / 12.0) - 0.75, ground * (2.0 / 12.0) - 0.5, // Multiply the ground Y by the height to achieve smooth scaling -MB
-	ground * (-1.0 / 12.0) + 0.75];
-
-	mat4.translate(mvMatrix, groundPos);
-	//
-	// Render the explosions
-	// If level is won explode all the bad guys with this new explosion
-	//
-	gl.useProgram(sproingieExplodeShaderProgram);
-	setProjectionUniforms(sproingieExplodeShaderProgram, pMatrix, groundPos);
-
-	gl.enable(gl.BLEND);
-	gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-
-	gl.activeTexture(gl.TEXTURE0);
-	gl.bindTexture(gl.TEXTURE_2D, explodeTexture);
-	gl.uniform1i(sproingieExplodeShaderProgram.samplerUniform, 0);
-
-  var numSproingies = sproingieList.length;
-	var t;
-  // Hero has index zero
-  for (t = 1; t < numSproingies; ++t) {
-	  sproingieList[t].RenderSproingieExplode(sproingieBuffers, mvMatrix, dist, true);
-	  // Send the sproingies back to 'start'
-	  sproingieList[t].ResetSproingie();
-  }
-  animateHero(sproingieList[0], mvMatrix);
-  //KILL_ALL = false;
-	//setTimeout(playPause(), 4000);
-	gl.disable(gl.BLEND);
-}
-
-var heroAnimStage = 0;
-
 function animateHero(hero, sproingieMatrix) {
-	heroAnimStage++;
-
+  var heroAnimStage = 0;
 	var rotAngle = Math.cos(heroAnimStage * Math.PI / 90) * 360.0
 	var fRotateZ = rotAngle + 360.0;
 
-
-	if (heroAnimStage < 45) {
-		mat4.rotate(sproingieMatrix, fRotateZ * DegToRad, [0.1, 0.1, .2]);
-	} else if (heroAnimStage < 90) {
-		mat4.translate(sproingieMatrix, [0.5, 0, -0.5]);
-		mat4.rotate(sproingieMatrix, heroAnimStage * 10 * DegToRad, [0, 1, 0]);
-		mat4.translate(sproingieMatrix, [-0.5, 0, 0.5]);
-		mat4.rotate(sproingieMatrix, rotAngle * 2 * DegToRad, [0, 0, 1]);
-	}
+		while (heroAnimStage < 90) {
+			if (heroAnimStage < 45) {
+				mat4.rotate(sproingieMatrix, fRotateZ * DegToRad, [0.1, 0.1, .2]);
+			} else if (heroAnimStage < 90) {
+				mat4.translate(sproingieMatrix, [0.5, 0, -0.5]);
+				mat4.rotate(sproingieMatrix, heroAnimStage * 10 * DegToRad, [0, 1, 0]);
+				mat4.translate(sproingieMatrix, [-0.5, 0, 0.5]);
+				mat4.rotate(sproingieMatrix, rotAngle * 2 * DegToRad, [0, 0, 1]);
+			}
+			heroAnimStage++;
+		}
 }
 
 function handleExplodeTexture(explodeTexture) {
@@ -2472,9 +2435,6 @@ function setScore() {
 
 function levelWon() {
 	sproingieList[0].ResetSproingie();
-	// playPause();
-	// killSproingies();
-	alert('Level ' + gameLevel + ' Won!');
 	gameLevel++;
 	totalScore = levelScore + totalScore;
 	levelScore = 10000 * gameLevel / 2;
@@ -2484,7 +2444,7 @@ function levelWon() {
 		//worldWidth--;
 		computeGround(--worldWidth, worldHeight, groundBuffers);
 	}
-	//Kill all other sproingies.
+	// Kill all other sproingies.
 	KILL_ALL = true
 	groundRGB = [Math.random(), Math.random(), Math.random()];
 }
